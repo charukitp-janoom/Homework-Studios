@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Quiz - Host</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;800&family=IBM+Plex+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --config-primary: #46178f; 
+  --config-secondary: #ffd700;
+  --bg: #f2f2f2; --panel: #ffffff; --text: #333333;
+  --shape-red: #e21b3c; --shape-blue: #1368ce; --shape-yellow: #d89e00; --shape-green: #26890c;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+
+.hidden { display: none !important; }
+.btn { padding: 16px 32px; border: none; border-radius: 8px; font-size: 24px; font-weight: 800; cursor: pointer; font-family: 'Sarabun'; transition: 0.2s; box-shadow: 0 4px 0 rgba(0,0,0,0.2); }
+.btn:active { transform: translateY(4px); box-shadow: none; }
+.btn-primary { background: var(--config-primary); color: #fff; }
+
+.screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; position: absolute; inset: 0; background: var(--bg); z-index: 10;}
+
+.setup-box { background: var(--panel); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 400px; }
+input, select { width: 100%; padding: 16px; margin: 10px 0 20px; font-size: 20px; border-radius: 8px; border: 2px solid #ccc; text-align: center; font-family: inherit; color: var(--text); background-color: #fff;}
+select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; padding-right: 40px; }
+
+/* Lobby */
+.lobby-screen { background: var(--config-primary); color: #fff; }
+.join-info { font-size: 48px; font-weight: 800; margin-bottom: 20px; }
+.join-pin { font-size: 80px; font-weight: 800; font-family: monospace; background: #fff; color: #000; padding: 10px 40px; border-radius: 16px; display: inline-block; margin-bottom: 40px;}
+
+.player-list { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 900px; margin: 0 auto 30px; max-height: 200px; overflow-y: auto; padding: 10px;}
+.player-list::-webkit-scrollbar { display: none; }
+.player-pill { background: rgba(255,255,255,0.2); padding: 8px 20px 8px 10px; border-radius: 30px; font-weight: 700; font-size: 18px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); display: flex; align-items: center; gap: 10px;}
+.player-pill img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #fff; border: 2px solid #fff; }
+@keyframes popIn { from {transform: scale(0); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+.player-count { font-size: 24px; font-weight: 800; color: var(--config-secondary); margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 10px 30px; border-radius: 30px; display: inline-block;}
+
+/* Question */
+.q-container { width: 90%; max-width: 1200px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; padding: 40px 0; }
+.q-title { font-size: 48px; font-weight: 800; text-align: center; background: #fff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 40px;}
+.q-layout { display: flex; flex: 1; gap: 40px; }
+.q-media { flex: 1; display: flex; align-items: center; justify-content: center; }
+.q-timer-circle { width: 150px; height: 150px; background: var(--config-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 800; color: #fff; font-family: monospace; box-shadow: inset 0 0 20px rgba(0,0,0,0.3);}
+.ans-count { font-size: 32px; font-weight: 800; margin-top: 20px; text-align: center;}
+
+/* Answers */
+.answers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: auto; }
+.ans-box { display: flex; align-items: center; padding: 16px 24px; border-radius: 12px; color: #fff; font-size: 22px; font-weight: 800; box-shadow: 0 4px 0 rgba(0,0,0,0.2); transition: 0.3s; min-height: 100px; word-break: break-word;}
+.ans-box .shape { width: 36px; height: 36px; background: #fff; margin-right: 16px; flex-shrink: 0; }
+.shape-red { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
+.shape-blue { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.shape-yellow { border-radius: 50%; }
+.shape-green { border-radius: 8px; }
+.dimmed { opacity: 0.3; }
+
+.bg-red { background-color: var(--shape-red) !important; }
+.bg-blue { background-color: var(--shape-blue) !important; }
+.bg-yellow { background-color: var(--shape-yellow) !important; }
+.bg-green { background-color: var(--shape-green) !important; }
+
+/* Chart */
+.chart-container { display: flex; align-items: flex-end; justify-content: center; gap: 40px; height: 250px; margin-top: 40px; width: 100%;}
+.bar-wrap { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; width: 120px; }
+.bar { width: 100%; background: #ccc; transition: height 0.5s ease; border-top-left-radius: 8px; border-top-right-radius: 8px;}
+.bar-count { font-size: 28px; font-weight: 800; margin-bottom: 10px; }
+
+/* 🏆 Scoreboard (Podium) - แบบ Responsive & Flex Column แท้ๆ */
+.sb-screen { 
+  background: var(--config-primary); 
+  color: #fff; 
+  justify-content: flex-start; 
+  padding: 60px 20px 0; 
+  overflow-y: auto; 
+}
+
+.sb-screen h1 {
+  flex-shrink: 0;
+  margin-bottom: auto; /* ดันเนื้อหาแท่นให้ร่วงไปกองด้านล่างสุดเสมอ */
+  text-align: center;
+  font-size: 64px;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.podium { 
+  display: flex; 
+  align-items: flex-end; 
+  justify-content: center; 
+  gap: 20px; 
+  width: 100%; 
+  max-width: 800px;
+  margin-top: 40px; 
+}
+
+.podium-place { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: center; 
+  flex: 1; 
+  max-width: 220px; 
+  position: relative; 
+}
+
+.pod-avatar-wrap { position: relative; z-index: 10; display: flex; justify-content: center; margin-bottom: -45px; }
+.p-1 .pod-avatar-wrap { margin-bottom: -65px; }
+
+.pod-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 5px solid var(--config-primary); background: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+.p-1 .pod-avatar { width: 130px; height: 130px; border-color: #ffd700; }
+.p-2 .pod-avatar { border-color: #c0c0c0; }
+.p-3 .pod-avatar { border-color: #cd7f32; }
+
+.p-name { 
+  font-size: 22px; font-weight: 800; color: #fff; text-align: center; 
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+  background: rgba(255,255,255,0.15); 
+  padding: 55px 15px 15px; 
+  border-radius: 12px; width: 100%; 
+  margin-bottom: 15px; 
+  position: relative; z-index: 1;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.p-1 .p-name { padding-top: 75px; font-size: 28px; background: rgba(255,215,0,0.2); border-color: rgba(255,215,0,0.5); color: #ffd700; }
+
+.p-score { font-size: 22px; font-family: monospace; margin-bottom: 15px; font-weight: 800; color: var(--config-secondary); text-shadow: 0 2px 4px rgba(0,0,0,0.5);}
+
+.p-block { 
+  width: 100%; background: rgba(0,0,0,0.2); border-top-left-radius: 16px; border-top-right-radius: 16px; 
+  display: flex; align-items: flex-start; justify-content: center; padding-top: 20px; 
+  font-size: 64px; font-weight: 800; color: rgba(255,255,255,0.5);
+}
+
+/* ใช้ความสูงแบบสัดส่วนหน้าจอ เพื่อกันการซ้อนทับกันเมื่อจอมีขนาดจำกัด */
+.p-1 .p-block { height: 35vh; min-height: 200px; background: #ffd700; color: #b8860b; box-shadow: 0 0 30px rgba(255,215,0,0.5);}
+.p-2 .p-block { height: 25vh; min-height: 140px; background: #c0c0c0; color: #808080; }
+.p-3 .p-block { height: 18vh; min-height: 100px; background: #cd7f32; color: #8b4513; }
+
+.top-controls { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; gap: 10px;}
+
+/* --- Custom Modal CSS สำหรับแจ้งเตือน --- */
+.modal-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.modal-ov.active { opacity: 1; pointer-events: auto; }
+.modal-box { background: var(--panel, #fff); border: 1px solid #ccc; border-radius: 24px; padding: 32px 24px; width: 100%; max-width: 380px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.modal-ov.active .modal-box { transform: scale(1); }
+.modal-icon { font-size: 70px; margin-bottom: 10px; line-height: 1; }
+.modal-title { font-size: 26px; font-weight: 800; color: var(--text, #333); margin-bottom: 10px; }
+.modal-msg { font-size: 18px; color: #666; margin-bottom: 30px; line-height: 1.6; }
+.modal-btn-group { display: flex; gap: 12px; justify-content: center; }
+.modal-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-size: 20px; font-weight: 800; font-family: 'Sarabun'; cursor: pointer; transition: 0.2s; border: none; }
+.modal-btn-cancel { background: #f2f2f2; color: #666; }
+.modal-btn-confirm { background: var(--config-primary, #46178f); color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+.modal-btn:active { transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div id="ov-load" class="screen" style="z-index: 9999; background: #fff;">
+  <div style="font-size: 40px; margin-bottom: 10px; animation: popIn 1s infinite alternate;">⏳</div>
+  <div style="font-weight: 800; font-size: 20px; color: #333;">กำลังโหลดระบบ...</div>
+</div>
+
+<div id="custom-modal" class="modal-ov">
+  <div class="modal-box">
+    <div id="modal-icon" class="modal-icon">⚠️</div>
+    <div id="modal-title" class="modal-title">แจ้งเตือน</div>
+    <div id="modal-msg" class="modal-msg">ข้อความ</div>
+    <div id="modal-btn-group" class="modal-btn-group"></div>
+  </div>
+</div>
+
+<div id="screen-login" class="screen hidden">
+  <div class="setup-box">
+    <div style="font-size: 60px; margin-bottom: 10px;">🎮</div>
+    <h2 style="margin-bottom: 5px;">ห้องสอบสด (Live Quiz)</h2>
+    <div style="font-size: 14px; color: #888; margin-bottom: 20px;" class="dynamic-app-name">System</div>
+    <input type="password" id="admin-pin" placeholder="รหัสผ่าน Admin">
+    <button class="btn btn-primary" style="width: 100%" id="btn-login" onclick="doLogin()">เข้าสู่ระบบ</button>
+  </div>
+</div>
+
+<div id="screen-setup" class="screen hidden">
+  <div class="setup-box">
+    <h2 style="margin-bottom: 15px;">📚 เลือกวิชาที่จะเปิดสอบ</h2>
+    <select id="sel-subject">
+      <option value="">กำลังโหลดวิชา...</option>
+    </select>
+    <button class="btn btn-primary" style="width: 100%" onclick="startRoom()" id="btn-start">เปิดห้องเรียน</button>
+  </div>
+</div>
+
+<div id="screen-lobby" class="screen lobby-screen hidden">
+  <div class="join-info">ให้<span class="dynamic-term-user">ผู้ใช้งาน</span>เข้าเมนูใน LINE แล้วกดคำว่า</div>
+  <div class="join-pin">"🎮 สอบสด"</div>
+  <div class="player-count">ผู้เข้าร่วม: <span id="h-player-count">0</span> คน</div>
+  <div class="player-list" id="h-player-list"></div>
+  <button class="btn" style="background:#fff; color:#000; padding: 20px 60px; box-shadow: 0 6px 0 rgba(0,0,0,0.3);" onclick="nextState('QUESTION')">เริ่มข้อที่ 1</button>
+</div>
+
+<div id="screen-game" class="screen hidden">
+  <div class="q-container">
+    <div class="q-title" id="h-q-text">คำถาม?</div>
+    <div class="q-layout">
+      <div class="q-media">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <div class="q-timer-circle" id="h-timer">20</div>
+          <div class="ans-count">ตอบแล้ว: <span id="h-ans-count">0</span></div>
+        </div>
+      </div>
+      
+      <div class="chart-container hidden" id="h-chart">
+        <div class="bar-wrap"><div class="bar-count" id="c-A">0</div><div class="bar bg-red" id="b-A" style="height:0%"></div></div>
+        <div class="bar-wrap"><div class="bar-count" id="c-B">0</div><div class="bar bg-blue" id="b-B" style="height:0%"></div></div>
+        <div class="bar-wrap"><div class="bar-count" id="c-C">0</div><div class="bar bg-yellow" id="b-C" style="height:0%"></div></div>
+        <div class="bar-wrap"><div class="bar-count" id="c-D">0</div><div class="bar bg-green" id="b-D" style="height:0%"></div></div>
+      </div>
+    </div>
+    
+    <div class="answers-grid">
+      <div class="ans-box bg-red" id="box-A"><div class="shape shape-red"></div><span id="h-txt-A">-</span></div>
+      <div class="ans-box bg-blue" id="box-B"><div class="shape shape-blue"></div><span id="h-txt-B">-</span></div>
+      <div class="ans-box bg-yellow" id="box-C"><div class="shape shape-yellow"></div><span id="h-txt-C">-</span></div>
+      <div class="ans-box bg-green" id="box-D"><div class="shape shape-green"></div><span id="h-txt-D">-</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-scoreboard" class="screen sb-screen hidden">
+  <h1>🏆 อันดับคะแนน</h1>
+  <div class="podium" id="podium-wrap"></div>
+</div>
+
+<div class="top-controls hidden" id="top-ctrl">
+  <button class="btn" style="background:#fff; color:#000; padding:10px 20px; font-size:18px;" id="btn-next-step" onclick="handleNextStep()">ข้าม / ถัดไป</button>
+  <button class="btn" style="background:#e21b3c; color:#fff; padding:10px 20px; font-size:18px; margin-left:10px;" onclick="closeRoom()">ปิดห้อง</button>
+</div>
+
+<script>
+const LIFF_ID = '2009896605-YBaQW9Fu'; // << [ใส่ LIFF ID สำหรับ Host]
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwo_kB4DZSVmYqkztnf8n_-sjVvAFUxIH9dZAqby_SUvV5H8gH5hXhILHkzZJ59S2j6/exec'; 
+
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let adminSecret = '';
+let pollInterval = null;
+let countdownInterval = null;
+
+let currentState = {};
+let currentAnswers = [];
+let currentPlayers = [];
+let allMembers = []; 
+let appConfig = null;
+
+let qTimeLeft = 20;
+
+// --- Modal Functions ---
+function showModal(icon, title, msg, isConfirm = false, onConfirm = null) {
+  document.getElementById('modal-icon').textContent  = icon;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent   = msg;
+
+  const btnGroup = document.getElementById('modal-btn-group');
+  btnGroup.innerHTML = '';
+
+  if (isConfirm) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className   = 'modal-btn modal-btn-cancel';
+    cancelBtn.textContent = 'ยกเลิก';
+    cancelBtn.addEventListener('click', closeModal, { once: true });
+
+    const okBtn = document.createElement('button');
+    okBtn.className   = 'modal-btn modal-btn-confirm';
+    okBtn.textContent = 'ตกลง';
+    // [FIX] once:true กัน double-confirm
+    okBtn.addEventListener('click', () => { closeModal(); if (onConfirm) onConfirm(); }, { once: true });
+    btnGroup.append(cancelBtn, okBtn);
+  } else {
+    const okBtn = document.createElement('button');
+    okBtn.className   = 'modal-btn modal-btn-confirm';
+    okBtn.textContent = 'ตกลง';
+    okBtn.addEventListener('click', closeModal, { once: true });
+    btnGroup.appendChild(okBtn);
+  }
+  document.getElementById('custom-modal').classList.add('active');
+}
+function closeModal() { document.getElementById('custom-modal').classList.remove('active'); }
+
+async function init() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    
+    const configRes = await callAPI('GET', { action: 'get_config' });
+    if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
+    
+    document.getElementById('ov-load').classList.add('hidden');
+    showScreen('screen-login');
+  } catch(e) { showModal('❌', 'ผิดพลาด', 'Init Error: ' + e.message); }
+}
+
+function applyTemplate(c) {
+  if(!c) return;
+  document.documentElement.style.setProperty('--config-primary', c.colorPrimary);
+  document.documentElement.style.setProperty('--config-secondary', c.colorSecondary);
+  document.title = "Live Host - " + c.appName;
+  
+  document.querySelectorAll('.dynamic-app-name').forEach(el => el.textContent = c.appName);
+  document.querySelectorAll('.dynamic-term-user').forEach(el => el.textContent = c.termUser);
+}
+
+function getDisplayName(uid, fallbackName) {
+  if(!uid) return fallbackName || '-';
+  const m = allMembers.find(x => String(x.userId) === String(uid));
+  return (m && m.nickname && m.nickname.trim() !== '') ? m.nickname : fallbackName;
+}
+
+function getPicUrl(uid) {
+  if(!uid) return 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
+  const m = allMembers.find(x => String(x.userId) === String(uid));
+  return (m && m.pictureUrl) ? m.pictureUrl : 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => { if(s.id !== 'ov-load') s.classList.add('hidden'); });
+  document.getElementById(id).classList.remove('hidden');
+  document.getElementById('top-ctrl').classList.toggle('hidden', id === 'screen-login' || id === 'screen-setup');
+}
+
+async function doLogin() {
+  const secret = document.getElementById('admin-pin').value;
+  if(!secret) return;
+
+  const btn = document.getElementById('btn-login');
+  btn.textContent = 'กำลังตรวจสอบ...'; btn.disabled = true;
+
+  try {
+    const res = await callAPI('GET', { action:'admin_data', secret: secret });
+    if(res.status === 'ok') {
+      adminSecret = secret;
+      allMembers = res.members || []; 
+      
+      if(res.config) { applyTemplate(res.config); }
+
+      if(res.questions) {
+        const categories = [...new Set(res.questions.filter(q => q.active === 'YES').map(q => q.category || 'ทั่วไป'))];
+        if (categories.length > 0) {
+          document.getElementById('sel-subject').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        } else {
+          document.getElementById('sel-subject').innerHTML = `<option value="">ยังไม่มีข้อสอบในระบบ</option>`;
+        }
+      }
+      showScreen('screen-setup');
+    } else { showModal('❌', 'เข้าสู่ระบบล้มเหลว', 'รหัสผ่านไม่ถูกต้อง'); }
+  } catch (e) { showModal('❌', 'เกิดข้อผิดพลาด', e.message); } 
+  finally { btn.textContent = 'เข้าสู่ระบบ'; btn.disabled = false; }
+}
+
+async function startRoom() {
+  const subj = document.getElementById('sel-subject').value;
+  if (!subj) return showModal('⚠️', 'แจ้งเตือน', 'กรุณาเลือกวิชาที่จะเปิดสอบ');
+  
+  const btn = document.getElementById('btn-start');
+  btn.textContent = 'กำลังเปิดห้อง...'; btn.disabled = true;
+
+  try {
+    const res = await callAPI('POST', { action: 'live_host_action', secret: adminSecret, command: 'START', subject: subj });
+    if(res.status === 'ok') {
+      currentState = res.state;
+      showScreen('screen-lobby');
+      startPolling();
+    } else { showModal('❌', 'ผิดพลาด', res.message); }
+  } catch(e) { showModal('❌', 'การเชื่อมต่อขัดข้อง', 'โปรดตรวจสอบสัญญาณอินเทอร์เน็ต'); }
+  finally { btn.textContent = 'เปิดห้องเรียน'; btn.disabled = false; }
+}
+
+let _isFetchingState = false; // [FIX] กัน request pile-up ใน polling
+function startPolling() {
+  if(pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(async () => {
+    if (_isFetchingState) return; // [FIX] skip ถ้ายังรอ response อยู่
+    _isFetchingState = true;
+    try {
+      const res = await callAPI('GET', { action:'live_get_state', isHost:'true' }, 8000);
+      if(res.status === 'ok') {
+        currentState    = res.state;
+        currentAnswers  = res.answers  || [];
+        currentPlayers  = res.players  || res.participants || [];
+        updateHostUI();
+      }
+    } catch(e) { console.warn('[Poll]', e.message); }
+    finally { _isFetchingState = false; }
+  }, 1500);
+}
+
+function updateHostUI() {
+  if(currentState.status === 'LOBBY') {
+    document.getElementById('h-player-count').textContent = currentPlayers.length;
+    const listEl = document.getElementById('h-player-list');
+    const newHtml = currentPlayers.map(p => `
+      <div class="player-pill">
+        <img src="${getPicUrl(p.userId)}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'"> 
+        ${escHtml(getDisplayName(p.userId, p.fullName))}
+      </div>`).join('');
+    if(listEl.innerHTML !== newHtml) { listEl.innerHTML = newHtml; }
+  }
+  else if(currentState.status === 'QUESTION' || currentState.status === 'REVEAL') {
+    const ansCount = currentAnswers.filter(a => a.qIndex === currentState.currentQIndex).length;
+    document.getElementById('h-ans-count').textContent = `${ansCount} / ${currentPlayers.length}`;
+  }
+}
+
+async function nextState(newStatus) {
+  let nextQIdx = currentState.currentQIndex;
+  if(newStatus === 'QUESTION' && currentState.status === 'SCOREBOARD') {
+    nextQIdx++; 
+    if(nextQIdx >= currentState.questions.length) {
+      showModal('🎉', 'จบเกม', 'ทำข้อสอบครบทุกข้อแล้ว!', false, closeRoom);
+      return;
+    }
+  }
+  
+  await callAPI('POST', { action:'live_host_action', secret:adminSecret, command:'UPDATE', status:newStatus, qIndex:nextQIdx });
+  currentState.status = newStatus;
+  currentState.currentQIndex = nextQIdx;
+  renderState();
+}
+
+function renderState() {
+  if(currentState.status === 'QUESTION') {
+    showScreen('screen-game');
+    document.querySelector('.q-media').classList.remove('hidden');
+    document.getElementById('h-chart').classList.add('hidden');
+    document.querySelectorAll('.ans-box').forEach(b => {
+      b.classList.remove('dimmed', 'hidden');
+      b.querySelector('span').textContent = '';
+    });
+    
+    const q = currentState.questions[currentState.currentQIndex];
+    document.getElementById('h-q-text').textContent = q.questionText;
+    
+    q.shuffledKeys.forEach((k, idx) => {
+       const colors = ['A','B','C','D'];
+       const bId = colors[idx];
+       document.getElementById(`box-${bId}`).setAttribute('data-key', k);
+       document.getElementById(`h-txt-${bId}`).textContent = q.choices[k];
+    });
+
+    qTimeLeft = 20;
+    clearInterval(countdownInterval);
+    document.getElementById('h-timer').textContent = qTimeLeft;
+    countdownInterval = setInterval(() => {
+      qTimeLeft--;
+      document.getElementById('h-timer').textContent = qTimeLeft;
+      if(qTimeLeft <= 0) {
+        clearInterval(countdownInterval);
+        nextState('REVEAL'); 
+      }
+    }, 1000);
+    
+    document.getElementById('btn-next-step').textContent = 'ข้ามเวลา (โชว์เฉลย)';
+  }
+  else if(currentState.status === 'REVEAL') {
+    clearInterval(countdownInterval);
+    document.querySelector('.q-media').classList.add('hidden');
+    document.getElementById('h-chart').classList.remove('hidden');
+    
+    const q = currentState.questions[currentState.currentQIndex];
+    const correctKey = q.correctAnswer;
+    
+    ['A','B','C','D'].forEach(c => {
+      const box = document.getElementById(`box-${c}`);
+      const k = box.getAttribute('data-key');
+      if(k !== correctKey) box.classList.add('dimmed');
+    });
+
+    const counts = { A:0, B:0, C:0, D:0 };
+    let maxCount = 1;
+    currentAnswers.filter(a => a.qIndex === currentState.currentQIndex).forEach(a => {
+       ['A','B','C','D'].forEach(c => {
+         if(document.getElementById(`box-${c}`).getAttribute('data-key') === a.answer) {
+           counts[c]++;
+           if(counts[c] > maxCount) maxCount = counts[c];
+         }
+       });
+    });
+
+    ['A','B','C','D'].forEach(c => {
+       document.getElementById(`c-${c}`).textContent = counts[c];
+       document.getElementById(`b-${c}`).style.height = `${(counts[c]/maxCount)*100}%`;
+    });
+
+    document.getElementById('btn-next-step').textContent = 'ดูอันดับคะแนน';
+  }
+  else if(currentState.status === 'SCOREBOARD') {
+    showScreen('screen-scoreboard');
+    
+    const scores = {};
+    currentAnswers.forEach(a => {
+      if(!scores[a.userId]) scores[a.userId] = { userId: a.userId, name: getDisplayName(a.userId, a.fullName), score: 0 };
+      scores[a.userId].score += a.score;
+    });
+    
+    const sorted = Object.values(scores).sort((a,b) => b.score - a.score).slice(0, 3);
+    
+    let html = '';
+    const displayOrder = [1, 0, 2]; 
+    displayOrder.forEach(idx => {
+       if(sorted[idx]) {
+          const p = sorted[idx];
+          html += `
+            <div class="podium-place p-${idx+1}">
+              <div class="pod-avatar-wrap">
+                <img src="${getPicUrl(p.userId)}" class="pod-avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'">
+              </div>
+              <div class="p-name">${escHtml(p.name)}</div>
+              <div class="p-score">${p.score}</div>
+              <div class="p-block">${idx+1}</div>
+            </div>
+          `;
+       } else {
+          html += `<div class="podium-place p-${idx+1}"></div>`;
+       }
+    });
+    document.getElementById('podium-wrap').innerHTML = html;
+    
+    const isLast = currentState.currentQIndex >= currentState.questions.length - 1;
+    document.getElementById('btn-next-step').textContent = isLast ? 'จบการสอน' : 'ข้อถัดไป';
+  }
+}
+
+function handleNextStep() {
+  if(currentState.status === 'QUESTION') nextState('REVEAL');
+  else if(currentState.status === 'REVEAL') nextState('SCOREBOARD');
+  else if(currentState.status === 'SCOREBOARD') {
+    if(currentState.currentQIndex >= currentState.questions.length - 1) closeRoom();
+    else nextState('QUESTION');
+  }
+}
+
+function closeRoom() {
+  showModal('🚪', 'ยืนยันปิดห้อง', 'ยืนยันปิดห้องเรียนและลบข้อมูลการสอบสดครั้งนี้?', true, async () => {
+    clearInterval(pollInterval);
+    clearInterval(countdownInterval);
+    await callAPI('POST', { action:'live_host_action', secret:adminSecret, command:'END' });
+    showScreen('screen-setup');
+  });
+}
+
+async function callAPI(method, params, timeoutMs = 15000) {
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    let url = GAS_URL, opts = { signal: ctrl.signal, redirect: 'follow' };
+    if (method === 'GET') { url += '?' + new URLSearchParams(params).toString(); opts.method = 'GET'; }
+    else { opts.method = 'POST'; opts.headers = { 'Content-Type': 'text/plain' }; opts.body = JSON.stringify(params); }
+    const resp = await fetch(url, opts);
+    clearTimeout(tid);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch(e) { clearTimeout(tid); if (e.name === 'AbortError') throw new Error('หมดเวลาเชื่อมต่อ'); throw e; }
+}
+
+init();
+</script>
+</body>
+</html>

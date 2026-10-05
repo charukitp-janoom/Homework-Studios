@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Duel Mode</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;800&family=IBM+Plex+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --config-primary: #58a6ff;
+  --bg: #0d1117; --panel: #161b22; --border: #30363d;
+  --primary: var(--config-primary); 
+  --gold: #ffc107; --danger: #f85149; --success: #2ea043;
+  --text: #c9d1d9; --muted: #8b949e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
+
+.screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; width: 100%; max-width: 500px; margin: 0 auto; height: 100%; flex: 1; padding: 20px; text-align: center; }
+.hidden { display: none !important; }
+
+.ov { position: fixed; inset: 0; background: rgba(13,17,23,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; padding: 20px; text-align: center; }
+.spinner { width: 50px; height: 50px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.title { font-size: 28px; font-weight: 800; color: var(--text); margin-bottom: 5px; }
+.subtitle { font-size: 14px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+.btn { background: var(--primary); color: #fff; border: none; padding: 14px 24px; border-radius: 10px; font-size: 16px; font-weight: 800; cursor: pointer; width: 100%; font-family: 'Sarabun', sans-serif; transition: 0.2s; margin-bottom: 12px; }
+.btn:active { transform: scale(0.96); }
+.btn-outline { background: transparent; border: 2px solid var(--border); color: var(--text); }
+
+.tabs { display: flex; width: 100%; background: var(--panel); border-radius: 10px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border); }
+.tab { flex: 1; padding: 10px; font-size: 14px; font-weight: 700; color: var(--muted); cursor: pointer; border-radius: 6px; transition: 0.2s; }
+.tab.active { background: var(--primary); color: #fff; }
+
+.subject-select { width: 100%; padding: 14px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-family: 'Sarabun', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 16px; outline: none; appearance: none; cursor: pointer; }
+.subject-select option { background: var(--panel); color: #fff; }
+
+.list-container { width: 100%; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow-y: auto; padding-bottom: 20px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-name { font-size: 16px; font-weight: 800; color: var(--text); }
+.card-pos { font-size: 12px; color: var(--muted); }
+.card-status { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 20px; }
+.s-pending { background: rgba(255,193,7,0.1); color: var(--gold); }
+.s-win { background: rgba(46,160,67,0.1); color: var(--success); }
+.s-lose { background: rgba(248,81,73,0.1); color: var(--danger); }
+.s-tie { background: rgba(139,148,158,0.1); color: var(--muted); }
+
+.game-header { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--panel); padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border); }
+.q-count { font-weight: 800; color: var(--primary); }
+.q-timer { font-family: 'IBM Plex Mono', monospace; font-weight: 800; font-size: 18px; color: var(--gold); }
+.q-box { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px 20px; width: 100%; font-size: 18px; font-weight: 600; line-height: 1.6; margin-bottom: 24px; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+.choices { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+.choice-btn { background: var(--bg); border: 2px solid var(--border); border-radius: 12px; padding: 16px; color: var(--text); font-size: 16px; font-family: 'Sarabun', sans-serif; cursor: pointer; text-align: left; transition: all 0.2s; }
+.choice-btn.selected { border-color: var(--primary); background: rgba(255,255,255,0.05); }
+
+.result-icon { font-size: 80px; margin-bottom: 10px; animation: bounceIn 0.5s; }
+@keyframes bounceIn { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); } }
+.score-box { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 100%; margin-bottom: 20px; }
+.score-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.score-name { font-weight: 700; font-size: 16px; }
+.score-val { font-family: 'IBM Plex Mono', monospace; font-weight: 800; font-size: 20px; color: var(--gold); }
+
+/* --- Custom Modal CSS --- */
+.modal-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+.modal-ov.active { opacity: 1; pointer-events: auto; }
+.modal-box { background: var(--panel); border: 1px solid var(--border); border-radius: 24px; padding: 32px 24px; width: 100%; max-width: 320px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.5); transform: scale(0.9); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.modal-ov.active .modal-box { transform: scale(1); }
+.modal-icon { font-size: 60px; margin-bottom: 15px; line-height: 1; }
+.modal-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+.modal-msg { font-size: 15px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+.modal-btn-group { display: flex; gap: 12px; justify-content: center; }
+.modal-btn { flex: 1; padding: 14px 0; border-radius: 12px; font-size: 16px; font-weight: 800; font-family: 'Sarabun'; cursor: pointer; transition: 0.2s; border: none; }
+.modal-btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.modal-btn-confirm { background: var(--primary); color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.modal-btn:active { transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div id="ov-load" class="ov">
+  <div class="spinner"></div>
+  <div style="font-weight:800; color:var(--text);">กำลังโหลดลานประลอง...</div>
+</div>
+
+<div id="custom-modal" class="modal-ov">
+  <div class="modal-box">
+    <div id="modal-icon" class="modal-icon">⚠️</div>
+    <div id="modal-title" class="modal-title">แจ้งเตือน</div>
+    <div id="modal-msg" class="modal-msg">ข้อความ</div>
+    <div id="modal-btn-group" class="modal-btn-group"></div>
+  </div>
+</div>
+
+<div id="lobby-ui" class="screen hidden">
+  <div style="font-size: 50px; margin-bottom: 10px;">⚔️</div>
+  <div class="title">ลานประลอง</div>
+  <div class="subtitle"><span class="dynamic-app-name">System</span><br>ท้าดวลความรู้แบบ 1 ต่อ 1 ตอบ 5 ข้อให้ไวและแม่นยำ!</div>
+
+  <div class="tabs">
+    <div class="tab active" id="tab-inbox" onclick="switchTab('inbox')">📥 กล่องคำท้า</div>
+    <div class="tab" id="tab-challenge" onclick="switchTab('challenge')">⚔️ ท้าประลองใหม่</div>
+  </div>
+
+  <div class="list-container" id="list-inbox"></div>
+  
+  <div class="list-container hidden" id="list-challenge">
+    <div style="text-align: left; margin-bottom: 5px; font-size: 14px; color: var(--muted); font-weight: 600;">เลือกวิชาที่ต้องการท้าดวล:</div>
+    <select id="sel-subject" class="subject-select">
+      <option value="ALL">🌟 สุ่มรวมทุกวิชา</option>
+    </select>
+    <div id="challenge-members-wrap" style="display:flex; flex-direction:column; gap:10px; margin-top: 10px;"></div>
+  </div>
+
+  <button class="btn btn-outline" style="margin-top:auto;" onclick="liff.closeWindow()">← ปิดหน้าต่าง</button>
+</div>
+
+<div id="game-ui" class="screen hidden">
+  <div class="game-header">
+    <div class="q-count">ข้อที่ <span id="q-current">1</span>/5</div>
+    <div class="q-timer" id="game-timer">00.0s</div>
+  </div>
+  <div class="q-box" id="q-text">คำถาม?</div>
+  <div class="choices">
+    <button class="choice-btn" id="btn-A" onclick="selectAnswer('A')">-</button>
+    <button class="choice-btn" id="btn-B" onclick="selectAnswer('B')">-</button>
+    <button class="choice-btn" id="btn-C" onclick="selectAnswer('C')">-</button>
+    <button class="choice-btn" id="btn-D" onclick="selectAnswer('D')">-</button>
+  </div>
+</div>
+
+<div id="result-ui" class="screen hidden" style="justify-content: center;">
+  <div class="result-icon" id="res-icon">⚔️</div>
+  <div class="title" id="res-title">ประลองเสร็จสิ้น</div>
+  <div class="subtitle" id="res-sub">รอผลการดวลจากคู่ต่อสู้</div>
+  <div class="score-box" id="res-details"></div>
+  <button class="btn" onclick="backToLobby()">กลับสู่ลานประลอง</button>
+</div>
+
+<script>
+const LIFF_ID = '2009896605-GH2nKTgJ'; 
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwo_kB4DZSVmYqkztnf8n_-sjVvAFUxIH9dZAqby_SUvV5H8gH5hXhILHkzZJ59S2j6/exec';
+
+let userId = '', inboxDuels = [], challengeMembers = [], allQs = [], appConfig = null;
+let currentDuel = null, targetUserId = null, questions = [], qIndex = 0, myScore = 0;
+
+let qStartTime = 0, totalTimeMs = 0, isAnswerLocked = false, gameTimerInterval = null;
+
+// --- Modal Functions ---
+function showModal(icon, title, msg, isConfirm = false, onConfirm = null) {
+  document.getElementById('modal-icon').textContent  = icon;
+  document.getElementById('modal-title').textContent = title;
+  // [FIX] ใช้ textContent กัน XSS — msg ที่ส่งมาจาก code เอง (ไม่ใช่ API/user)
+  // ยกเว้นกรณีที่ต้องการ HTML จริงๆ จะ set innerHTML หลัง escapeHtml
+  document.getElementById('modal-msg').textContent = msg;
+
+  const btnGroup = document.getElementById('modal-btn-group');
+  btnGroup.innerHTML = '';
+
+  if (isConfirm) {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className   = 'modal-btn modal-btn-cancel';
+    cancelBtn.textContent = 'ยกเลิก';
+    cancelBtn.addEventListener('click', closeModal, { once: true });
+
+    const okBtn = document.createElement('button');
+    okBtn.className   = 'modal-btn modal-btn-confirm';
+    okBtn.textContent = 'ตกลง';
+    // [FIX] once:true กัน double-confirm
+    okBtn.addEventListener('click', () => { closeModal(); if (onConfirm) onConfirm(); }, { once: true });
+    btnGroup.append(cancelBtn, okBtn);
+  } else {
+    const okBtn = document.createElement('button');
+    okBtn.className   = 'modal-btn modal-btn-confirm';
+    okBtn.textContent = 'ตกลง';
+    okBtn.addEventListener('click', closeModal, { once: true });
+    btnGroup.appendChild(okBtn);
+  }
+  document.getElementById('custom-modal').classList.add('active');
+}
+function closeModal() { document.getElementById('custom-modal').classList.remove('active'); }
+
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function init() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    
+    const configRes = await callAPI('GET', { action: 'get_config' });
+    if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
+
+    userId = (await liff.getProfile()).userId;
+    
+    const qData = await callAPI('GET', { action:'get_questions', userId: userId });
+    if (qData.status === 'ok') {
+      allQs = qData.questions || [];
+      populateSubjectSelect(allQs, 'sel-subject');
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('duelId')) await loadDuelData(urlParams.get('duelId'));
+    else await loadLobby();
+  } catch(e) { showError(e.message); }
+}
+
+function applyTemplate(c) {
+  if(!c) return;
+  document.documentElement.style.setProperty('--config-primary', c.colorPrimary);
+  document.title = "ลานประลอง - " + c.appName;
+  document.querySelectorAll('.dynamic-app-name').forEach(el => el.textContent = c.appName);
+}
+
+function populateSubjectSelect(qs, selectId) {
+  const select = document.getElementById(selectId);
+  const categories = [...new Set(qs.map(q => q.category || 'ทั่วไป'))];
+  let html = '<option value="ALL">🌟 สุ่มรวมทุกวิชา</option>';
+  categories.forEach(c => {
+    const count = qs.filter(q => (q.category||'ทั่วไป') === c).length;
+    html += `<option value="${c}">${c} (${count} ข้อ)</option>`;
+  });
+  select.innerHTML = html;
+}
+
+async function loadLobby() {
+  showLoading('กำลังโหลดข้อมูล...');
+  try {
+    const data = await callAPI('GET', { action:'get_duel_inbox', userId: userId });
+    if (data.status === 'error') throw new Error(data.message);
+    inboxDuels = data.duels || []; challengeMembers = data.members || [];
+    renderLobby(); hideLoading(); showScreen('lobby-ui');
+  } catch(e) { showError(e.message); }
+}
+
+function renderLobby() {
+  const inboxEl = document.getElementById('list-inbox'); inboxEl.innerHTML = '';
+  if (inboxDuels.length === 0) inboxEl.innerHTML = '<div style="color:var(--muted); padding: 40px 0;">ยังไม่มีประวัติการประลอง</div>';
+  else {
+    inboxDuels.forEach(d => {
+      const isChallenger = d.cId === userId;
+      let statusHtml = '', actionBtn = '';
+
+      if (d.status === 'PENDING') {
+        if (!isChallenger) { statusHtml = '<span class="card-status s-pending">📥 มีคำท้าใหม่!</span>'; actionBtn = `<button class="btn btn-sm" style="padding:8px; margin:0;" onclick="loadDuelData('${d.duelId}')">⚔️ รับคำท้า</button>`; } 
+        else { statusHtml = '<span class="card-status s-tie">⏳ รอคู่ต่อสู้รับคำท้า</span>'; }
+      } else {
+        const cS = Number(d.cScore), tS = Number(d.tScore), cT = Number(d.cTime), tT = Number(d.tTime);
+        let myS = isChallenger ? cS : tS, opS = isChallenger ? tS : cS, myT = isChallenger ? cT : tT, opT = isChallenger ? tT : cT;
+        let res = 'tie'; if(myS > opS) res = 'win'; else if(opS > myS) res = 'lose'; else { if(myT < opT) res = 'win'; else if(opT < myT) res = 'lose'; }
+        if(res === 'win') statusHtml = '<span class="card-status s-win">🎉 ชนะ</span>'; else if(res === 'lose') statusHtml = '<span class="card-status s-lose">💀 แพ้</span>'; else statusHtml = '<span class="card-status s-tie">🤝 เสมอ</span>';
+        actionBtn = `<div style="font-size:12px; color:var(--muted);">คุณ ${myS} (${(myT/1000).toFixed(1)}s)<br>คู่แข่ง ${opS} (${(opT/1000).toFixed(1)}s)</div>`;
+      }
+      inboxEl.innerHTML += `<div class="card"><div class="card-header"><div><div class="card-name">${isChallenger ? d.tName : d.cName}</div><div class="card-pos">${isChallenger ? 'คุณท้าประลอง' : 'ท้าประลองคุณ'}</div></div>${statusHtml}</div>${actionBtn ? `<div style="display:flex; justify-content:flex-end; margin-top:5px;">${actionBtn}</div>` : ''}</div>`;
+    });
+  }
+
+  const chWrap = document.getElementById('challenge-members-wrap');
+  chWrap.innerHTML = '';
+  if (challengeMembers.length === 0) chWrap.innerHTML = '<div style="color:var(--muted); padding: 40px 0;">ไม่มีรายชื่อในระบบ</div>';
+  else {
+    challengeMembers.forEach(m => { chWrap.innerHTML += `<div class="card" style="flex-direction:row; align-items:center; justify-content:space-between; padding: 12px 16px;"><div><div class="card-name">${escHtml(m.fullName)}</div><div class="card-pos">${escHtml(m.rank)} ${escHtml(m.position)}</div></div><button class="btn btn-outline" style="width:auto; padding: 6px 16px; margin:0;" onclick="initChallenge('${m.userId}', '${escHtml(m.fullName)}')">ท้าดวล</button></div>`; });
+  }
+}
+
+function switchTab(tabId) {
+  document.getElementById('tab-inbox').classList.remove('active'); document.getElementById('tab-challenge').classList.remove('active');
+  document.getElementById('list-inbox').classList.add('hidden'); document.getElementById('list-challenge').classList.add('hidden');
+  document.getElementById('tab-' + tabId).classList.add('active'); document.getElementById('list-' + tabId).classList.remove('hidden');
+}
+
+async function loadDuelData(duelId) {
+  showLoading('กำลังเตรียมสนามประลอง...');
+  try {
+    const data = await callAPI('GET', { action:'get_duel_data', duelId: duelId });
+    if (data.status === 'error') throw new Error(data.message);
+    currentDuel = data.duel; questions = data.questions;
+    if (currentDuel.status === 'COMPLETED') showResultCompleted();
+    else if (currentDuel.tId === userId) startQuizFlow();
+    else showResultWaiting();
+  } catch(e) { showError(e.message); }
+}
+
+async function initChallenge(tId, tName) {
+  const subj = document.getElementById('sel-subject').value;
+  let targetQs = subj === 'ALL' ? allQs : allQs.filter(q => (q.category||'ทั่วไป') === subj);
+  
+  if (targetQs.length < 5) {
+     return showModal('⚠️', 'คำเตือน', 'วิชานี้มีข้อสอบไม่ถึง 5 ข้อ ไม่สามารถใช้ท้าประลองได้ครับ');
+  }
+
+  // ✅ ใช้ Custom Confirm แทน
+  showModal('⚔️', 'ยืนยันการท้าประลอง', `ต้องการส่งคำท้าประลอง <b>${tName}</b> หรือไม่?`, true, async () => {
+    showLoading('กำลังดึงชุดคำถาม...');
+    try {
+      questions = targetQs.sort(()=>Math.random()-0.5).slice(0,5); 
+      targetUserId = tId; currentDuel = null;
+      startQuizFlow();
+    } catch(e) { showError(e.message); }
+  });
+}
+
+function startQuizFlow() { hideLoading(); showScreen('game-ui'); qIndex = 0; myScore = 0; totalTimeMs = 0; renderQuestion(); }
+
+function renderQuestion() {
+  if (qIndex >= 5) { submitDuelResult(); return; }
+  isAnswerLocked = false; const q = questions[qIndex];
+  document.getElementById('q-current').textContent = qIndex + 1; document.getElementById('q-text').textContent = q.questionText;
+  
+  const displayLetters = ['A', 'B', 'C', 'D']; 
+  const shuffledKeys = displayLetters.filter(k => q.choices && q.choices[k]).sort(() => Math.random() - 0.5);
+  
+  displayLetters.forEach(l => { const btn = document.getElementById(`btn-${l}`); btn.className = 'choice-btn'; btn.style.display = 'none'; });
+  shuffledKeys.forEach((key, index) => { 
+    const letter = displayLetters[index]; 
+    const btn = document.getElementById(`btn-${letter}`); 
+    btn.style.display = 'block'; 
+    btn.textContent = q.choices[key]; 
+    btn.setAttribute('data-real-key', key); 
+  });
+  
+  startTimerUI();
+}
+
+function startTimerUI() {
+  clearInterval(gameTimerInterval);
+  qStartTime = Date.now(); 
+  const el = document.getElementById('game-timer');
+  
+  gameTimerInterval = setInterval(() => { 
+    el.textContent = ((Date.now() - qStartTime) / 1000).toFixed(1) + 's'; 
+  }, 100);
+}
+
+function selectAnswer(displayLetter) {
+  if(isAnswerLocked) return; 
+  isAnswerLocked = true; 
+  clearInterval(gameTimerInterval);
+  
+  totalTimeMs += Date.now() - qStartTime;
+  
+  const btn = document.getElementById(`btn-${displayLetter}`);
+  const realKey = btn.getAttribute('data-real-key');
+  const correctKey = (questions[qIndex].correctAnswer || '').toUpperCase();
+  
+  btn.classList.add('selected');
+  
+  setTimeout(() => { 
+    if (realKey === correctKey) myScore++; 
+    qIndex++; 
+    renderQuestion(); 
+  }, 300); 
+}
+
+async function submitDuelResult() {
+  showLoading('กำลังส่งผลการประลอง...');
+  try {
+    if (currentDuel) { 
+      await callAPI('POST', { action: 'submit_duel', userId: userId, duelId: currentDuel.duelId, score: myScore, timeMs: totalTimeMs }); 
+      await loadDuelData(currentDuel.duelId); 
+    } else { 
+      await callAPI('POST', { action: 'create_duel', userId: userId, targetId: targetUserId, score: myScore, timeMs: totalTimeMs, qIds: questions.map(q => q.questionId) }); 
+      showResultWaiting(); 
+    }
+  } catch(e) { showError(e.message); }
+}
+
+function showResultWaiting() {
+  hideLoading(); showScreen('result-ui'); document.getElementById('res-icon').textContent = '⏳'; document.getElementById('res-title').textContent = 'ส่งคำท้าสำเร็จ!'; document.getElementById('res-sub').textContent = 'รอคู่ต่อสู้รับคำท้าและดวลให้จบ';
+  document.getElementById('res-details').innerHTML = `<div class="score-row"><div class="score-name">คะแนนของคุณ</div><div class="score-val">${myScore}/5</div></div><div class="score-row"><div class="score-name">เวลาที่ใช้</div><div class="score-val">${(totalTimeMs/1000).toFixed(1)}s</div></div>`;
+}
+
+function showResultCompleted() {
+  hideLoading(); showScreen('result-ui');
+  const d = currentDuel; const isChallenger = d.cId === userId;
+  const myS = isChallenger ? Number(d.cScore) : Number(d.tScore), opS = isChallenger ? Number(d.tScore) : Number(d.cScore);
+  const myT = isChallenger ? Number(d.cTime) : Number(d.tTime), opT = isChallenger ? Number(d.tTime) : Number(d.cTime);
+  let res = 'tie'; if(myS > opS) res = 'win'; else if(opS > myS) res = 'lose'; else { if(myT < opT) res = 'win'; else if(opT < myT) res = 'lose'; }
+  document.getElementById('res-icon').textContent = res === 'win' ? '🎉' : res === 'lose' ? '💀' : '🤝';
+  document.getElementById('res-title').textContent = res === 'win' ? 'คุณชนะ!' : res === 'lose' ? 'คุณแพ้!' : 'เสมอ!';
+  document.getElementById('res-sub').textContent = `ผลการประลองกับ ${isChallenger ? d.tName : d.cName}`;
+  document.getElementById('res-details').innerHTML = `<div class="score-row" style="color:var(--primary)"><div class="score-name">คะแนนของคุณ</div><div class="score-val" style="color:var(--primary)">${myS}/5 <span style="font-size:12px;color:var(--muted)">(${(myT/1000).toFixed(1)}s)</span></div></div><div class="score-row" style="color:var(--danger)"><div class="score-name">คะแนนคู่แข่ง</div><div class="score-val" style="color:var(--danger)">${opS}/5 <span style="font-size:12px;color:var(--muted)">(${(opT/1000).toFixed(1)}s)</span></div></div>`;
+}
+
+function backToLobby() { window.history.replaceState({}, document.title, window.location.pathname); loadLobby(); }
+function showScreen(id) { document.getElementById('lobby-ui').classList.add('hidden'); document.getElementById('game-ui').classList.add('hidden'); document.getElementById('result-ui').classList.add('hidden'); document.getElementById(id).classList.remove('hidden'); }
+function showLoading(text) { document.getElementById('ov-load').classList.remove('hidden'); document.getElementById('ov-load').querySelector('div:last-child').textContent = text; }
+function hideLoading() { document.getElementById('ov-load').classList.add('hidden'); }
+
+// ✅ แสดง Error ผ่าน Modal แทน alert()
+function showError(msg) { 
+  hideLoading();
+  showModal('❌', 'เกิดข้อผิดพลาด', msg);
+}
+
+async function callAPI(method, params, timeoutMs=20000) {
+  const ctrl = new AbortController(); const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    let url = GAS_URL, opts = { signal:ctrl.signal, redirect:'follow' };
+    if (method === 'GET') { url += '?' + new URLSearchParams(params).toString(); opts.method = 'GET'; } 
+    else { opts.method = 'POST'; opts.headers = { 'Content-Type':'text/plain' }; opts.body = JSON.stringify(params); }
+    const resp = await fetch(url, opts); clearTimeout(tid);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status); return await resp.json();
+  } catch(e) { clearTimeout(tid); throw e; }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Survival Mode</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;800&family=IBM+Plex+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-color: #120909; --panel-bg: #1c1111;
+  --fire: #ff3d00; --orange: #ff9100; --yellow: #ffea00;
+  --btn-grad: linear-gradient(180deg, #ff5252 0%, #d50000 100%);
+  --border: #5c1818; --text: #ffffff; --correct: #00e676;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Sarabun', sans-serif; background: var(--bg-color); color: var(--text); overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
+
+.bg-glow { position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100vw; height: 40vh; background: radial-gradient(ellipse at top, rgba(213,0,0,0.25) 0%, rgba(18,9,9,0) 70%); z-index: -1; pointer-events: none; }
+.ov { position: fixed; inset: 0; background: rgba(18,9,9,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; padding: 20px; text-align: center; }
+.ov.hidden { display: none !important; }
+.spinner { width: 60px; height: 60px; border: 4px solid rgba(255,61,0,0.1); border-top: 4px solid var(--fire); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.screen { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 500px; margin: 0 auto; height: 100%; flex: 1; padding: 20px 16px; }
+.start-logo { font-size: 80px; margin-bottom: 10px; filter: drop-shadow(0 0 20px rgba(255,61,0,0.6)); animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+.title { font-size: 36px; font-weight: 800; color: var(--fire); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px;}
+.subtitle { font-size: 14px; color: #ffab91; margin-bottom: 20px; line-height: 1.6; }
+
+/* Subject Selector */
+.subject-select { width: 100%; max-width: 320px; padding: 14px 16px; background: rgba(255,255,255,0.05); border: 2px solid var(--orange); border-radius: 12px; color: #fff; font-family: 'Sarabun', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 24px; outline: none; appearance: none; text-align: center; cursor: pointer; }
+.subject-select option { background: var(--panel-bg); color: #fff; text-align: left; }
+
+.btn { background: var(--btn-grad); color: #fff; border: 2px solid #ff8a80; padding: 16px 32px; border-radius: 12px; font-size: 18px; font-weight: 800; cursor: pointer; width: 100%; font-family: 'Sarabun', sans-serif; transition: 0.2s; box-shadow: 0 4px 15px rgba(213,0,0,0.5); margin-bottom: 12px; }
+.btn:active { transform: scale(0.96); }
+.btn-outline { background: transparent; border: 2px solid var(--orange); color: var(--orange); box-shadow: none; }
+.btn-outline:active { background: rgba(255,145,0,0.1); }
+.btn-close { background: transparent; border: none; color: #888; text-decoration: underline; box-shadow: none; font-size: 14px; margin-top: 20px;}
+
+.game-header { width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.streak-box { background: rgba(255,61,0,0.15); border: 1px solid var(--fire); padding: 8px 16px; border-radius: 20px; font-size: 20px; font-weight: 800; color: var(--orange); display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Mono', monospace; }
+.life-box { font-size: 24px; filter: drop-shadow(0 0 5px red); }
+
+.timer-container { width: 100%; background: var(--panel-bg); border: 1px solid var(--border); border-radius: 10px; height: 16px; overflow: hidden; margin-bottom: 20px; position: relative; }
+.timer-bar { height: 100%; background: linear-gradient(90deg, var(--yellow), var(--orange), var(--fire)); width: 100%; border-radius: 10px; }
+
+.q-card { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; padding: 24px 20px; text-align: center; font-size: 18px; font-weight: 600; line-height: 1.6; margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); width: 100%; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+
+.choices { display: grid; grid-template-columns: 1fr; gap: 12px; width: 100%; }
+.choice-btn { background: rgba(255,255,255,0.03); border: 2px solid var(--border); border-radius: 12px; padding: 16px; color: var(--text); font-size: 16px; font-family: 'Sarabun', sans-serif; cursor: pointer; text-align: left; transition: all 0.2s; position: relative; overflow: hidden; }
+.choice-btn.selected { border-color: var(--yellow); background: rgba(255,234,0,0.1); }
+.choice-btn.correct { background: var(--correct); border-color: #fff; color: #000; box-shadow: 0 0 15px rgba(0,230,118,0.5); font-weight: 700; }
+.choice-btn.wrong { background: var(--fire); border-color: #fff; color: #fff; box-shadow: 0 0 15px rgba(255,61,0,0.5); font-weight: 700; }
+
+.lb-container { background: var(--panel-bg); border: 1px solid var(--border); border-radius: 16px; padding: 16px; width: 100%; max-height: 60vh; overflow-y: auto; margin-bottom: 20px; text-align: left; }
+.lb-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.lb-item:last-child { border-bottom: none; }
+.lb-rank { font-size: 16px; font-weight: 800; color: var(--orange); width: 30px; }
+.lb-name { flex: 1; font-size: 15px; color: var(--text); }
+.lb-score { font-size: 18px; font-weight: 800; color: var(--yellow); font-family: 'IBM Plex Mono', monospace; }
+.lb-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; margin: 0 12px 0 6px; border: 2px solid var(--orange); flex-shrink: 0; background: #fff;}
+
+.end-score { font-size: 80px; font-weight: 800; color: var(--yellow); font-family: 'IBM Plex Mono', monospace; line-height: 1; margin: 10px 0; text-shadow: 0 0 30px var(--fire); }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+
+<div id="ov-load" class="ov">
+  <div class="spinner"></div>
+  <h2 style="color:var(--fire);">โหลดกระสุน...</h2>
+</div>
+
+<div id="start-ui" class="screen" style="display:none;">
+  <div class="start-logo">💀</div>
+  <div class="title">Survival</div>
+  <div class="subtitle"><span class="dynamic-app-name">System</span><br>โหมดเอาชีวิตรอด ข้อละ 10 วินาที พลาด 1 ครั้งจบเกม!</div>
+  
+  <select id="sel-subject" class="subject-select">
+    <option value="ALL">🌟 รวมทุกรายวิชา</option>
+  </select>
+
+  <button class="btn" onclick="startGame()">🔥 เริ่มเอาชีวิตรอด</button>
+  <button class="btn btn-outline" onclick="showLeaderboard()">🏆 ทำเนียบผู้รอดชีวิต</button>
+  <button class="btn btn-close" onclick="liff.closeWindow()">ปิดหน้าต่าง</button>
+</div>
+
+<div id="lb-ui" class="screen" style="display:none; justify-content: flex-start; padding-top: 40px;">
+  <div class="title" style="font-size: 28px;">ทำเนียบผู้รอดชีวิต</div>
+  <div class="subtitle" style="margin-bottom: 16px;">จัดอันดับจากสถิติ Streak (ตอบถูกต่อเนื่อง)</div>
+  
+  <div id="lb-loading" style="color:var(--orange); margin: 20px 0;">กำลังค้นหาข้อมูล...</div>
+  <div class="lb-container" id="lb-list" style="display:none;"></div>
+  <button class="btn btn-outline" style="margin-top: auto;" onclick="closeLeaderboard()">← ย้อนกลับ</button>
+</div>
+
+<div id="game-ui" class="screen" style="display:none; justify-content: flex-start;">
+  <div class="game-header">
+    <div class="streak-box">🔥 <span id="streak-count">0</span></div>
+    <div class="life-box" id="life-icon">❤️</div>
+  </div>
+  <div class="timer-container"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+  <div class="q-card" id="q-text">คำถาม?</div>
+  <div class="choices">
+    <button class="choice-btn" id="btn-A" onclick="selectAnswer('A')">-</button>
+    <button class="choice-btn" id="btn-B" onclick="selectAnswer('B')">-</button>
+    <button class="choice-btn" id="btn-C" onclick="selectAnswer('C')">-</button>
+    <button class="choice-btn" id="btn-D" onclick="selectAnswer('D')">-</button>
+  </div>
+</div>
+
+<div id="end-ui" class="ov hidden">
+  <div class="screen">
+    <div style="font-size: 60px; margin-bottom: 10px;">💀</div>
+    <div class="title" style="color:#fff;">GAME OVER</div>
+    <div style="color:#ffab91;">คุณเอาชีวิตรอดไปได้</div>
+    <div class="end-score" id="end-streak">0</div>
+    <div style="font-size: 14px; color:#aaa; margin-bottom: 30px;">ข้อ</div>
+    
+    <button class="btn" onclick="resetToStart()">🔄 ลองใหม่อีกครั้ง</button>
+    <button class="btn btn-outline" onclick="showLeaderboardFromEnd()">🏆 ดูทำเนียบ</button>
+    <button class="btn btn-close" onclick="liff.closeWindow()">กลับสู่หน้าหลัก LINE</button>
+  </div>
+</div>
+
+<script>
+const LIFF_ID = '2009896605-Q5vvQ9Fr';   
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwo_kB4DZSVmYqkztnf8n_-sjVvAFUxIH9dZAqby_SUvV5H8gH5hXhILHkzZJ59S2j6/exec';
+
+let allQs = [], currentPlayQs = [], gamePool = [], currentQIndex = 0, currentStreak = 0;
+let isLocked = false, currentCorrectAnswer = '', userId = '';
+const TIME_LIMIT_MS = 10000;
+let timerTimeout = null;
+let startTimestamp = 0;
+let appConfig = null;
+
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showNoQError() {
+  const ov = document.getElementById('ov-load');
+  ov.innerHTML = '<div style="font-size:40px;margin-bottom:15px;">⚠️</div><h2 style="margin-bottom:10px;">ไม่พบข้อสอบในวิชานี้</h2><p style="margin-bottom:20px;opacity:0.7;">กรุณาเลือกวิชาอื่น หรือ &quot;รวมทุกรายวิชา&quot;</p><button onclick="document.getElementById(\'ov-load\').classList.add(\'hidden\')" style="padding:12px 24px;border-radius:10px;border:none;font-size:16px;font-weight:800;font-family:\'Sarabun\',sans-serif;cursor:pointer;">ตกลง</button>';
+  ov.classList.remove('hidden');
+}
+
+async function init() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    
+    const configRes = await callAPI('GET', { action: 'get_config' });
+    if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
+
+    userId = (await liff.getProfile()).userId;
+    const data = await callAPI('GET', { action:'get_questions', userId: userId });
+    if (data.status === 'error') throw new Error(data.message);
+
+    allQs = data.questions || [];
+    if (allQs.length === 0) throw new Error(`ไม่พบข้อสอบในระบบ`);
+
+    populateSubjectSelect(allQs, 'sel-subject');
+
+    document.getElementById('ov-load').classList.add('hidden');
+    document.getElementById('start-ui').style.display = 'flex';
+  } catch(e) {
+    document.getElementById('ov-load').innerHTML = `<h2 style="color:var(--fire);font-size:24px;">เกิดข้อผิดพลาด</h2><p style="color:#ffab91;">${escHtml(e.message)}</p>`;
+  }
+}
+
+function applyTemplate(c) {
+  if(!c) return;
+  document.title = "เอาชีวิตรอด - " + c.appName;
+  document.querySelectorAll('.dynamic-app-name').forEach(el => el.textContent = c.appName);
+}
+
+function populateSubjectSelect(qs, selectId) {
+  const select = document.getElementById(selectId);
+  const categories = [...new Set(qs.map(q => q.category || 'ทั่วไป'))];
+  let html = '<option value="ALL">🌟 รวมทุกรายวิชา</option>';
+  categories.forEach(c => {
+    const count = qs.filter(q => (q.category||'ทั่วไป') === c).length;
+    html += `<option value="${c}">${c} (${count} ข้อ)</option>`;
+  });
+  select.innerHTML = html;
+}
+
+function shuffleArray(array) {
+  let arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function startGame() {
+  const subj = document.getElementById('sel-subject').value;
+  currentPlayQs = subj === 'ALL' ? [...allQs] : allQs.filter(q => (q.category||'ทั่วไป') === subj);
+
+  if(currentPlayQs.length === 0) {
+     showNoQError(); return;
+  }
+
+  document.getElementById('start-ui').style.display = 'none';
+  document.getElementById('end-ui').classList.add('hidden');
+  document.getElementById('game-ui').style.display = 'flex';
+  
+  currentStreak = 0;
+  document.getElementById('streak-count').textContent = '0';
+  document.getElementById('life-icon').textContent = '❤️';
+  gamePool = shuffleArray(currentPlayQs); currentQIndex = 0;
+  loadNextQuestion();
+}
+
+function resetToStart() {
+  document.getElementById('end-ui').classList.add('hidden');
+  document.getElementById('start-ui').style.display = 'flex';
+}
+
+function loadNextQuestion() {
+  isLocked = false;
+  if (currentQIndex >= gamePool.length) gamePool = gamePool.concat(shuffleArray(currentPlayQs));
+
+  const q = gamePool[currentQIndex];
+  document.getElementById('q-text').textContent = q.questionText;
+  currentCorrectAnswer = (q.correctAnswer || '').toUpperCase();
+
+  const displayLetters = ['A', 'B', 'C', 'D'];
+  const shuffledKeys = displayLetters.filter(k => q.choices && q.choices[k]).sort(() => Math.random() - 0.5);
+
+  displayLetters.forEach(l => { const btn = document.getElementById(`btn-${l}`); btn.className = 'choice-btn'; btn.style.display = 'none'; });
+
+  shuffledKeys.forEach((key, index) => {
+    const letter = displayLetters[index];
+    const btn = document.getElementById(`btn-${letter}`);
+    btn.style.display = 'block'; btn.textContent = q.choices[key]; btn.setAttribute('data-real-key', key);
+  });
+  
+  startTimerBar();
+}
+
+function startTimerBar() {
+  clearInterval(timerTimeout);
+  startTimestamp = Date.now();
+  const bar = document.getElementById('timer-bar');
+  bar.style.width = '100%';
+  
+  timerTimeout = setInterval(() => {
+    const elapsed = Date.now() - startTimestamp;
+    const remaining = Math.max(0, TIME_LIMIT_MS - elapsed);
+    const pct = (remaining / TIME_LIMIT_MS) * 100;
+    
+    bar.style.width = pct + '%';
+    
+    if (remaining <= 0) {
+      clearInterval(timerTimeout);
+      if (!isLocked) handleWrongAnswer(null, true);
+    }
+  }, 50);
+}
+
+function selectAnswer(displayLetter) {
+  if (isLocked) return; isLocked = true;
+  clearInterval(timerTimeout);
+
+  const btn = document.getElementById(`btn-${displayLetter}`);
+  if (btn.getAttribute('data-real-key') === currentCorrectAnswer) {
+    btn.classList.add('correct'); currentStreak++; document.getElementById('streak-count').textContent = currentStreak;
+    setTimeout(() => { currentQIndex++; loadNextQuestion(); }, 600);
+  } else { handleWrongAnswer(btn, false); }
+}
+
+function handleWrongAnswer(wrongBtn, isTimeout) {
+  isLocked = true; document.getElementById('life-icon').textContent = '💔';
+  if (isTimeout) document.getElementById('q-text').innerHTML = `<span style="color:var(--fire); font-size:24px;">⏰ หมดเวลา!</span><br>` + document.getElementById('q-text').innerHTML;
+  else if (wrongBtn) wrongBtn.classList.add('wrong');
+
+  ['A','B','C','D'].forEach(l => {
+    const b = document.getElementById(`btn-${l}`);
+    if (b.getAttribute('data-real-key') === currentCorrectAnswer) b.classList.add('correct');
+  });
+  setTimeout(() => { endGame(); }, 2000);
+}
+
+function endGame() {
+  document.getElementById('game-ui').style.display = 'none';
+  document.getElementById('end-ui').classList.remove('hidden');
+  document.getElementById('end-streak').textContent = currentStreak;
+
+  if (currentStreak > 0) {
+    callAPI('POST', { action: 'submit_survival_score', userId: userId, streak: currentStreak }).catch(e => console.error(e));
+  }
+}
+
+async function showLeaderboard() { document.getElementById('start-ui').style.display = 'none'; document.getElementById('lb-ui').style.display = 'flex'; loadLeaderboardData(); }
+function showLeaderboardFromEnd() { document.getElementById('end-ui').classList.add('hidden'); document.getElementById('lb-ui').style.display = 'flex'; loadLeaderboardData(); }
+function closeLeaderboard() { document.getElementById('lb-ui').style.display = 'none'; document.getElementById('start-ui').style.display = 'flex'; }
+
+async function loadLeaderboardData() {
+  document.getElementById('lb-loading').style.display = 'block'; document.getElementById('lb-list').style.display = 'none';
+  try {
+    const res = await callAPI('GET', { action:'get_survival_leaderboard' });
+    const list = document.getElementById('lb-list'); list.innerHTML = '';
+    if (res.leaderboard.length === 0) list.innerHTML = '<div style="text-align:center; padding:30px; color:#aaa;">ยังไม่มีผู้รอดชีวิต</div>';
+    else {
+      res.leaderboard.forEach((e, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+        const pic = e.pictureUrl || 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
+        
+        list.innerHTML += `
+          <div class="lb-item">
+            <div class="lb-rank">${medal}</div>
+            <img src="${pic}" class="lb-avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/847/847969.png'">
+            <div class="lb-name" style="${e.userId === userId ? 'color:var(--orange);' : ''}">
+              <div style="font-weight:700">${escHtml(e.fullName)}</div>
+              <div style="font-size:11px; color:#888;">${escHtml(e.rank)} ${escHtml(e.position)}</div>
+            </div>
+            <div class="lb-score">${e.streak} 🔥</div>
+          </div>
+        `;
+      });
+    }
+    document.getElementById('lb-loading').style.display = 'none'; list.style.display = 'block';
+  } catch(e) { document.getElementById('lb-loading').innerHTML = '<span style="color:var(--fire)">❌ โหลดข้อมูลล้มเหลว</span>'; }
+}
+
+async function callAPI(method, params, timeoutMs=20000) {
+  const ctrl = new AbortController(); const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    let url = GAS_URL, opts = { signal:ctrl.signal, redirect:'follow' };
+    if (method === 'GET') { url += '?' + new URLSearchParams(params).toString(); opts.method = 'GET'; } 
+    else { opts.method = 'POST'; opts.headers = { 'Content-Type':'text/plain' }; opts.body = JSON.stringify(params); }
+    const resp = await fetch(url, opts); clearTimeout(tid);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status); return await resp.json();
+  } catch(e) { clearTimeout(tid); throw e; }
+}
+
+init();
+</script>
+</body>
+</html>
