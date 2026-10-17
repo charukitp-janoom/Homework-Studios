@@ -129,7 +129,7 @@ const LIFF_ID = '2011865890-UsQmz2pM';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxKKawrK__-fSv-6z_GVziGlx0FIlZax-bkOirlxeecBjJqFlKB0lc26t5pifqqVP5Wvw/exec';
 
 let allQs = [], currentPlayQs = [], gamePool = [], currentQIndex = 0, currentStreak = 0;
-let isLocked = false, currentCorrectAnswer = '', userId = '';
+let isLocked = false, userId = '';
 const TIME_LIMIT_MS = 10000;
 let timerTimeout = null;
 let startTimestamp = 0;
@@ -156,11 +156,11 @@ async function init() {
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
     userId = (await liff.getProfile()).userId;
-    const data = await callAPI('GET', { action:'get_questions', userId: userId });
+    const data = await callAPI('GET', { action:'get_game_questions', game:'survival', userId: userId });
     if (data.status === 'error') throw new Error(data.message);
 
     allQs = data.questions || [];
-    if (allQs.length === 0) throw new Error(`ไม่พบข้อสอบในระบบ`);
+    if (allQs.length === 0) throw new Error('ยังไม่มีข้อสอบที่เปิดใช้งาน กรุณาให้ผู้ดูแลเพิ่มหรือเปิดข้อสอบ');
 
     populateSubjectSelect(allQs, 'sel-subject');
 
@@ -227,7 +227,6 @@ function loadNextQuestion() {
 
   const q = gamePool[currentQIndex];
   document.getElementById('q-text').textContent = q.questionText;
-  currentCorrectAnswer = (q.correctAnswer || '').toUpperCase();
 
   const displayLetters = ['A', 'B', 'C', 'D'];
   const shuffledKeys = displayLetters.filter(k => q.choices && q.choices[k]).sort(() => Math.random() - 0.5);
@@ -263,15 +262,23 @@ function startTimerBar() {
   }, 50);
 }
 
-function selectAnswer(displayLetter) {
+async function selectAnswer(displayLetter) {
   if (isLocked) return; isLocked = true;
   clearInterval(timerTimeout);
 
   const btn = document.getElementById(`btn-${displayLetter}`);
-  if (btn.getAttribute('data-real-key') === currentCorrectAnswer) {
-    btn.classList.add('correct'); currentStreak++; document.getElementById('streak-count').textContent = currentStreak;
-    setTimeout(() => { currentQIndex++; loadNextQuestion(); }, 600);
-  } else { handleWrongAnswer(btn, false); }
+  try {
+    const result = await callAPI('POST', { action:'check_game_answer', game:'survival', userId, questionId:gamePool[currentQIndex].questionId, answer:btn.getAttribute('data-real-key') });
+    if (result.status !== 'ok') throw new Error(result.message || 'ตรวจคำตอบไม่สำเร็จ');
+    if (result.isCorrect) {
+      btn.classList.add('correct'); currentStreak++; document.getElementById('streak-count').textContent = currentStreak;
+      setTimeout(() => { currentQIndex++; loadNextQuestion(); }, 600);
+    } else { handleWrongAnswer(btn, false); }
+  } catch (e) {
+    isLocked = false;
+    startTimerBar();
+    alert('ตรวจคำตอบไม่สำเร็จ: ' + e.message);
+  }
 }
 
 function handleWrongAnswer(wrongBtn, isTimeout) {
@@ -279,10 +286,6 @@ function handleWrongAnswer(wrongBtn, isTimeout) {
   if (isTimeout) document.getElementById('q-text').innerHTML = `<span style="color:var(--fire); font-size:24px;">⏰ หมดเวลา!</span><br>` + document.getElementById('q-text').innerHTML;
   else if (wrongBtn) wrongBtn.classList.add('wrong');
 
-  ['A','B','C','D'].forEach(l => {
-    const b = document.getElementById(`btn-${l}`);
-    if (b.getAttribute('data-real-key') === currentCorrectAnswer) b.classList.add('correct');
-  });
   setTimeout(() => { endGame(); }, 2000);
 }
 
