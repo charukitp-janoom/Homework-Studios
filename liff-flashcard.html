@@ -175,11 +175,11 @@ async function init() {
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
     userId = (await liff.getProfile()).userId;
-    const data = await callAPI('GET', { action:'get_questions', userId: userId });
+    const data = await callAPI('GET', { action:'get_game_questions', game:'flashcard', userId: userId });
     if (data.status === 'error') throw new Error(data.message);
 
     allQs = data.questions || [];
-    if (allQs.length === 0) throw new Error(`ไม่พบข้อสอบในระบบ`);
+    if (allQs.length === 0) throw new Error('ยังไม่มีข้อสอบที่เปิดใช้งาน กรุณาให้ผู้ดูแลเพิ่มหรือเปิดข้อสอบ');
 
     populateSubjectSelect(allQs, 'sel-subject');
 
@@ -213,25 +213,9 @@ function generateFlashcards() {
   let tempArr = [...currentPlayQs].sort(() => Math.random() - 0.5); 
   
   tempArr.forEach(q => {
-    let isTrueStatement = Math.random() > 0.5;
-    const correctKey = (q.correctAnswer || '').toUpperCase();
-    let displayChoice = q.choices[correctKey] || '';
-
-    // ถ้าสุ่มได้ประโยคเท็จ ต้องหาช้อยส์หลอกมาแสดง
-    if (!isTrueStatement) {
-      // ดึงช้อยส์ที่ผิดและไม่ว่างเปล่า
-      const wrongKeys = ['A','B','C','D'].filter(k => k !== correctKey && q.choices[k] && q.choices[k].trim() !== '');
-      if (wrongKeys.length > 0) {
-        const rKey = wrongKeys[Math.floor(Math.random() * wrongKeys.length)];
-        displayChoice = q.choices[rKey];
-      } else {
-        // [FIX BUG]: ถ้าข้อนั้นไม่มีช้อยส์หลอกเลย (เช่น มีแค่ถูก-ผิด) บังคับให้เป็นประโยคจริงเสมอ
-        isTrueStatement = true;
-        displayChoice = q.choices[correctKey];
-      }
-    }
-
-    flashcards.push({ qText: q.questionText, ansText: displayChoice, isTrue: isTrueStatement });
+    const choiceKey = q.flashcardChoiceKey;
+    if (!choiceKey || !q.choices[choiceKey]) return;
+    flashcards.push({ qText:q.questionText, ansText:q.choices[choiceKey], questionId:q.questionId, choiceKey });
   });
 }
 
@@ -252,6 +236,12 @@ function startGame() {
   document.getElementById('timer-box').classList.remove('warning');
   
   generateFlashcards(); 
+  if (!flashcards.length) {
+    document.getElementById('game-ui').classList.add('hidden');
+    document.getElementById('start-ui').classList.remove('hidden');
+    showNoQError();
+    return;
+  }
   startTimer();
   renderCard();
 }
@@ -261,15 +251,15 @@ function resetToStart() {
   document.getElementById('start-ui').classList.remove('hidden');
 }
 
-function startTimer() {
+function startTimer(duration = TIME_LIMIT) {
   clearInterval(timerInterval);
   startTimestamp = Date.now();
-  timeLeft = TIME_LIMIT;
+  timeLeft = duration;
   document.getElementById('timer-count').textContent = timeLeft;
   
   timerInterval = setInterval(() => {
     const elapsedSecs = Math.floor((Date.now() - startTimestamp) / 1000);
-    timeLeft = Math.max(0, TIME_LIMIT - elapsedSecs);
+    timeLeft = Math.max(0, duration - elapsedSecs);
     
     document.getElementById('timer-count').textContent = timeLeft;
     
@@ -298,9 +288,9 @@ function renderCard() {
   card.innerHTML = `
     <div class="stamp yep" id="stamp-yep">ถูกต้อง</div>
     <div class="stamp nope" id="stamp-nope">ผิด</div>
-    <div class="card-q">${cardData.qText}</div>
+    <div class="card-q">${escHtml(cardData.qText)}</div>
     <div class="card-divider"></div>
-    <div class="card-ans">👉 ${cardData.ansText}</div>
+    <div class="card-ans">👉 ${escHtml(cardData.ansText)}</div>
   `;
   
   container.appendChild(card);
@@ -356,13 +346,25 @@ function handleButtonClick(isRight) {
   swipeAction(isRight);
 }
 
-function swipeAction(swipedTrue) {
+async function swipeAction(swipedTrue) {
   isSwiping = true; 
-  const isActualTrue = flashcards[currentIndex].isTrue;
-  
+  clearInterval(timerInterval);
+  const remaining = timeLeft;
+  const cardData = flashcards[currentIndex];
+  let result;
+  try {
+    result = await callAPI('POST', { action:'check_game_answer', game:'flashcard', userId, questionId:cardData.questionId, answer:cardData.choiceKey });
+    if (result.status !== 'ok') throw new Error(result.message || 'ตรวจคำตอบไม่สำเร็จ');
+  } catch (e) {
+    isSwiping = false;
+    currentCardEl.style.transform = 'translateX(0px) rotate(0deg)';
+    startTimer(remaining);
+    alert('ตรวจคำตอบไม่สำเร็จ: ' + e.message);
+    return;
+  }
   currentCardEl.style.transform = `translateX(${swipedTrue ? 500 : -500}px) rotate(${swipedTrue ? 30 : -30}deg)`;
   
-  if (swipedTrue === isActualTrue) {
+  if (swipedTrue === result.isCorrect) {
     score++;
     document.getElementById('score-count').textContent = score;
   }
@@ -371,7 +373,7 @@ function swipeAction(swipedTrue) {
   
   setTimeout(() => {
     currentIndex++;
-    if(timeLeft > 0) renderCard();
+    if(timeLeft > 0) { renderCard(); startTimer(remaining); }
   }, 200); // เร่งความเร็วการโชว์การ์ดใบถัดไปให้ลื่นขึ้น
 }
 
