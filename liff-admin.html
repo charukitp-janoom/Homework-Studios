@@ -222,9 +222,17 @@ select.form-control { cursor: pointer; }
   <!-- TAB: Settings -->
   <div class="tab-content" id="tab-settings">
     <div class="list-card">
-      <div class="list-title mb-2">ตั้งค่าระบบทั่วไป</div>
-      <label class="stat-label">เวลาทำข้อสอบมาตรฐาน (นาที)</label>
-      <input type="number" id="inp-exam-time" class="form-control" value="20" min="1" max="180">
+      <div class="list-title mb-2">ข้อมูลหน้าเรียน</div>
+      <label class="stat-label">ชื่อแอป</label><input id="inp-app-name" class="form-control" maxlength="80">
+      <label class="stat-label">ชื่อองค์กร</label><input id="inp-org-name" class="form-control" maxlength="80">
+      <label class="stat-label">สีหลัก / สีรอง</label>
+      <div class="flex gap-2"><input type="color" id="inp-color-primary" class="form-control"><input type="color" id="inp-color-secondary" class="form-control"></div>
+      <label class="stat-label">คำเรียกผู้ใช้ / คอร์สเรียน / คะแนนสะสม</label>
+      <div class="flex gap-2"><input id="inp-term-user" class="form-control" maxlength="30"><input id="inp-term-position" class="form-control" maxlength="30"><input id="inp-term-coin" class="form-control" maxlength="30"></div>
+    </div>
+    <div class="list-card mt-4">
+      <div class="list-title mb-2">การลงทะเบียน</div>
+      <label class="stat-label"><input type="checkbox" id="inp-registration-open" checked> เปิดรับลงทะเบียนใหม่</label>
       <label class="stat-label">ช่วงชั้นที่เปิดให้ลงทะเบียน</label>
       <select id="inp-grade-mode" class="form-control">
         <option value="primary">ประถมศึกษา ป.1–ป.6</option>
@@ -233,6 +241,32 @@ select.form-control { cursor: pointer; }
         <option value="secondary">มัธยมศึกษาทั้งหมด ม.1–ม.6</option>
       </select>
       <div class="list-sub mb-2">มีผลกับการลงทะเบียนและการแก้ไขข้อมูลครั้งถัดไป ข้อมูลชั้นเรียนเดิมยังคงอยู่</div>
+      <label class="stat-label">คอร์สเรียน (หนึ่งคอร์สต่อบรรทัด)</label>
+      <textarea id="inp-course-options" class="form-control" rows="5" placeholder="เว้นว่างไว้เพื่อให้พิมพ์คอร์สเอง"></textarea>
+    </div>
+    <div class="list-card mt-4">
+      <div class="list-title mb-2">แบบทดสอบ</div>
+      <label class="stat-label">เวลาทำข้อสอบ (นาที)</label>
+      <input type="number" id="inp-exam-time" class="form-control" value="20" min="1" max="180">
+      <label class="stat-label">จำนวนข้อสอบต่อวิชา (0 = ทุกข้อ)</label>
+      <input type="number" id="inp-exam-question-count" class="form-control" value="0" min="0" max="200">
+      <label class="stat-label">เกณฑ์ผ่าน (%)</label>
+      <input type="number" id="inp-exam-pass-percent" class="form-control" value="60" min="0" max="100">
+      <label class="stat-label"><input type="checkbox" id="inp-exam-retake"> อนุญาตให้สอบซ้ำ (เก็บคะแนนสูงสุด)</label>
+    </div>
+    <div class="list-card mt-4">
+      <div class="list-title mb-2">คะแนนและอันดับ</div>
+      <label class="stat-label">คะแนนสะสมต่อข้อที่ตอบถูก</label>
+      <input type="number" id="inp-exam-points" class="form-control" value="10" min="0" max="1000">
+      <label class="stat-label">การแสดงอันดับใน LINE</label>
+      <select id="inp-rank-mode" class="form-control"><option value="self">เฉพาะของตนเอง</option><option value="public">อันดับรวม TOP 10</option></select>
+    </div>
+    <div class="list-card mt-4">
+      <div class="list-title mb-2">เมนูนักเรียน</div>
+      <div id="menu-settings" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;"></div>
+      <div class="list-sub mb-2">เมนูที่ปิดจะหายจาก Quick Reply และปฏิเสธการใช้งานผ่านระบบ</div>
+    </div>
+    <div class="list-card mt-4">
       <button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
     </div>
     <div class="list-card mt-4" style="border-color:rgba(255,82,82,0.3);">
@@ -377,6 +411,11 @@ let appData              = {};
 let appConfig            = null;
 let activeQuestionSubject = 'ALL';
 let isLoggingIn          = false; // [FIX] guard double login click
+const MENU_LABELS = {
+  exam:'ทำแบบทดสอบ', library:'คลังความรู้', game:'เกมเศรษฐี', survival:'เอาชีวิตรอด',
+  codebreaker:'กู้ระเบิด', flashcard:'แฟลชการ์ด', duel:'ประลอง', store:'ร้านค้า',
+  quests:'ภารกิจ', live:'สอบสด', rank:'อันดับ',
+};
 
 /* ════════════════════════════════════════════════════════
    UTILITIES
@@ -597,8 +636,34 @@ function renderAll() {
   renderLibrary();
   renderStore();
   if (appData.settings) {
-    document.getElementById('inp-exam-time').value = appData.settings.examTimeMinutes;
-    document.getElementById('inp-grade-mode').value = appData.settings.gradeMode || 'primary';
+    const s = appData.settings;
+    document.getElementById('inp-exam-time').value = s.examTimeMinutes;
+    document.getElementById('inp-grade-mode').value = s.gradeMode || 'primary';
+    document.getElementById('inp-app-name').value = s.appName || '';
+    document.getElementById('inp-org-name').value = s.orgName || '';
+    document.getElementById('inp-color-primary').value = s.colorPrimary || '#2563eb';
+    document.getElementById('inp-color-secondary').value = s.colorSecondary || '#f59e0b';
+    document.getElementById('inp-term-user').value = s.termUser || 'นักเรียน';
+    document.getElementById('inp-term-position').value = s.termPosition || 'คอร์สเรียน';
+    document.getElementById('inp-term-coin').value = s.termCoin || 'Point';
+    document.getElementById('inp-registration-open').checked = s.registrationOpen !== false;
+    document.getElementById('inp-course-options').value = (s.courseOptions || []).join('\n');
+    document.getElementById('inp-exam-question-count').value = s.examQuestionCount ?? 0;
+    document.getElementById('inp-exam-pass-percent').value = s.examPassPercent ?? 60;
+    document.getElementById('inp-exam-retake').checked = s.examRetake === true;
+    document.getElementById('inp-exam-points').value = s.examPointsPerCorrect ?? 10;
+    document.getElementById('inp-rank-mode').value = s.rankDisplayMode || 'self';
+    const menuContainer = document.getElementById('menu-settings');
+    menuContainer.replaceChildren();
+    Object.entries(MENU_LABELS).forEach(([key, label]) => {
+      const row = document.createElement('label');
+      row.className = 'stat-label';
+      const input = document.createElement('input');
+      input.type = 'checkbox'; input.dataset.menuKey = key;
+      input.checked = (s.menuFlags || {})[key] !== false;
+      row.append(input, ' ' + label);
+      menuContainer.appendChild(row);
+    });
   }
 }
 
@@ -1139,7 +1204,7 @@ function sendBroadcast() {
 
   // confirmMsg สร้างจาก code เอง (targetValue มาจาก dropdown ที่ใช้ textContent แล้ว)
   let confirmMsg = `ยืนยันส่งข้อความไปยัง <b>"สมาชิกทุกคน"</b> ใช่หรือไม่?`;
-  if (targetType === 'LEVEL')    confirmMsg = `ยืนยันส่งข้อความไปยังระดับชั้น <b>"${escHtml(targetValue)}"</b> ใช่หรือไม่?`;
+  if (targetType === 'LEVEL')    confirmMsg = `ยืนยันส่งข้อความไปยังชั้นเรียน <b>"${escHtml(targetValue)}"</b> ใช่หรือไม่?`;
   if (targetType === 'POSITION') confirmMsg = `ยืนยันส่งข้อความไปยังสาขา <b>"${escHtml(targetValue)}"</b> ใช่หรือไม่?`;
 
   customConfirm(confirmMsg, async () => {
@@ -1220,13 +1285,33 @@ function updateRedeem(id, status) {
    SETTINGS ACTIONS
    ════════════════════════════════════════════════════════ */
 async function saveSettings() {
-  const t = parseInt(document.getElementById('inp-exam-time').value);
-  if (!t || t < 1 || t > 180) return customAlert('เวลาต้องอยู่ระหว่าง 1-180 นาที', 'แจ้งเตือน', '⚠️');
-  const gradeMode = document.getElementById('inp-grade-mode').value;
+  const value = id => document.getElementById(id).value.trim();
+  const t = Number(value('inp-exam-time'));
+  const questionCount = Number(value('inp-exam-question-count'));
+  const passPercent = Number(value('inp-exam-pass-percent'));
+  const points = Number(value('inp-exam-points'));
+  if (!Number.isInteger(t) || t < 1 || t > 180) return customAlert('เวลาต้องอยู่ระหว่าง 1-180 นาที', 'แจ้งเตือน', '⚠️');
+  if (!Number.isInteger(questionCount) || questionCount < 0 || questionCount > 200) return customAlert('จำนวนข้อสอบต้องอยู่ระหว่าง 0-200', 'แจ้งเตือน', '⚠️');
+  if (!Number.isInteger(passPercent) || passPercent < 0 || passPercent > 100) return customAlert('เกณฑ์ผ่านต้องอยู่ระหว่าง 0-100%', 'แจ้งเตือน', '⚠️');
+  if (!Number.isInteger(points) || points < 0 || points > 1000) return customAlert('คะแนนสะสมต่อข้อต้องอยู่ระหว่าง 0-1000', 'แจ้งเตือน', '⚠️');
+  const courseOptions = [...new Set(value('inp-course-options').split(/\r?\n/).map(s => s.trim()).filter(Boolean))];
+  if (courseOptions.length > 30 || courseOptions.some(s => s.length > 100)) return customAlert('คอร์สเรียนได้สูงสุด 30 รายการ และไม่เกิน 100 ตัวอักษรต่อรายการ', 'แจ้งเตือน', '⚠️');
+  const menuFlags = Object.fromEntries([...document.querySelectorAll('[data-menu-key]')].map(el => [el.dataset.menuKey, el.checked]));
+  const payload = {
+    action:'save_settings', secret:adminSecret, examTimeMinutes:t,
+    gradeMode:value('inp-grade-mode'), appName:value('inp-app-name'), orgName:value('inp-org-name'),
+    colorPrimary:value('inp-color-primary'), colorSecondary:value('inp-color-secondary'),
+    termUser:value('inp-term-user'), termPosition:value('inp-term-position'), termCoin:value('inp-term-coin'),
+    registrationOpen:document.getElementById('inp-registration-open').checked, courseOptions,
+    examQuestionCount:questionCount, examPassPercent:passPercent,
+    examRetake:document.getElementById('inp-exam-retake').checked, examPointsPerCorrect:points,
+    rankDisplayMode:value('inp-rank-mode'), menuFlags,
+  };
   try {
-    const res = await callAPI('POST', { action:'save_settings', secret:adminSecret, examTimeMinutes:t, gradeMode });
+    const res = await callAPI('POST', payload);
     if (res.status !== 'ok') throw new Error(res.message || 'บันทึกไม่สำเร็จ');
-    customAlert('บันทึกเวลาทำข้อสอบและช่วงชั้นแล้ว', 'สำเร็จ', '✅');
+    await loadData();
+    customAlert('บันทึกการตั้งค่าแล้ว', 'สำเร็จ', '✅');
   }
   catch (e) { customAlert(e.message, 'ผิดพลาด', '❌'); }
 }
