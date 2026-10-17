@@ -238,10 +238,20 @@ function applyTemplate(config) {
   document.getElementById('ui-app-name').textContent = config.appName  || '';
   document.getElementById('ui-org-name').textContent = config.orgName  || '';
 
-  document.getElementById('lbl-level').textContent        = 'เลือกชั้นประถมศึกษา';
+  const levelLabel = config.termLevel || 'ชั้นประถมศึกษา';
+  document.getElementById('lbl-level').textContent        = `เลือก${levelLabel}`;
+  const levelSelect = document.getElementById('inp-level');
+  levelSelect.replaceChildren(new Option('-- เลือก --', '', true, true));
+  levelSelect.options[0].disabled = true;
+  const group = document.createElement('optgroup');
+  group.label = levelLabel;
+  (Array.isArray(config.gradeOptions) ? config.gradeOptions : ['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6']).forEach(grade => {
+    group.appendChild(new Option(grade, grade));
+  });
+  levelSelect.appendChild(group);
   document.getElementById('lbl-fullname').textContent     = `ชื่อ-นามสกุล${config.termUser || ''}`;
   document.getElementById('lbl-position').textContent     = 'คอร์สเรียน';
-  document.getElementById('lbl-info-level').textContent   = 'ชั้นประถมศึกษา';
+  document.getElementById('lbl-info-level').textContent   = levelLabel;
   document.getElementById('lbl-info-fullname').textContent = `ชื่อ-นามสกุล${config.termUser || ''}`;
   document.getElementById('lbl-info-pos').textContent     = 'คอร์สเรียน';
 }
@@ -307,7 +317,7 @@ async function submitData() {
   [levelEl, fullnameEl, nicknameEl, positionEl, parentPhoneEl].forEach(el => el.classList.remove('error'));
 
   // Validation
-  if (!/^ป\.[1-6]$/.test(level)) {
+  if (!level || levelEl.selectedIndex < 1) {
     levelEl.classList.add('error');
     return customAlert('กรุณาเลือกระดับชั้นให้ถูกต้อง', 'ข้อมูลไม่ครบ', '⚠️');
   }
