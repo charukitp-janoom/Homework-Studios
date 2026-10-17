@@ -110,7 +110,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 
   <div class="form-group">
     <label class="form-label" id="lbl-level">เลือกชั้นประถมศึกษา</label>
-    <select class="form-control" id="inp-level">
+    <select class="form-control" id="inp-level" onchange="updateRegistrationFields()">
       <option value="" disabled selected>-- เลือก --</option>
       <optgroup label="ชั้นประถมศึกษา">
         <option value="ป.1">ป.1</option>
@@ -119,6 +119,9 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
         <option value="ป.4">ป.4</option>
         <option value="ป.5">ป.5</option>
         <option value="ป.6">ป.6</option>
+      </optgroup>
+      <optgroup label="ผู้ใช้อื่น">
+        <option value="บุคคลทั่วไป">บุคคลทั่วไป</option>
       </optgroup>
     </select>
   </div>
@@ -137,7 +140,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
     <input type="text" class="form-control" id="inp-position" placeholder="กรอกชื่อคอร์สเรียน" maxlength="100">
   </div>
   <div class="form-group">
-    <label class="form-label" for="inp-parent-phone">เบอร์โทรผู้ปกครอง</label>
+    <label class="form-label" id="lbl-parent-phone" for="inp-parent-phone">เบอร์โทรผู้ปกครอง</label>
     <input type="tel" class="form-control" id="inp-parent-phone" placeholder="เช่น 0812345678" inputmode="tel" autocomplete="tel" maxlength="10">
   </div>
 
@@ -239,21 +242,31 @@ function applyTemplate(config) {
   document.getElementById('ui-org-name').textContent = config.orgName  || '';
 
   const levelLabel = config.termLevel || 'ชั้นประถมศึกษา';
-  document.getElementById('lbl-level').textContent        = `เลือก${levelLabel}`;
+  document.getElementById('lbl-level').textContent        = 'เลือกชั้นเรียนหรือประเภทผู้ใช้';
   const levelSelect = document.getElementById('inp-level');
   levelSelect.replaceChildren(new Option('-- เลือก --', '', true, true));
   levelSelect.options[0].disabled = true;
   const group = document.createElement('optgroup');
   group.label = levelLabel;
-  (Array.isArray(config.gradeOptions) ? config.gradeOptions : ['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6']).forEach(grade => {
+  (Array.isArray(config.gradeOptions) ? config.gradeOptions : ['ป.1','ป.2','ป.3','ป.4','ป.5','ป.6','บุคคลทั่วไป']).filter(grade => grade !== 'บุคคลทั่วไป').forEach(grade => {
     group.appendChild(new Option(grade, grade));
   });
   levelSelect.appendChild(group);
+  const otherGroup = document.createElement('optgroup');
+  otherGroup.label = 'ผู้ใช้อื่น';
+  otherGroup.appendChild(new Option('บุคคลทั่วไป', 'บุคคลทั่วไป'));
+  levelSelect.appendChild(otherGroup);
+  updateRegistrationFields();
   document.getElementById('lbl-fullname').textContent     = `ชื่อ-นามสกุล${config.termUser || ''}`;
-  document.getElementById('lbl-position').textContent     = 'คอร์สเรียน';
-  document.getElementById('lbl-info-level').textContent   = levelLabel;
+  document.getElementById('lbl-info-level').textContent   = 'ชั้นเรียน/ประเภทผู้ใช้';
   document.getElementById('lbl-info-fullname').textContent = `ชื่อ-นามสกุล${config.termUser || ''}`;
   document.getElementById('lbl-info-pos').textContent     = 'คอร์สเรียน';
+}
+
+function updateRegistrationFields() {
+  const isGeneral = document.getElementById('inp-level').value === 'บุคคลทั่วไป';
+  document.getElementById('lbl-position').textContent = isGeneral ? 'คอร์สเรียน (ถ้ามี)' : 'คอร์สเรียน';
+  document.getElementById('lbl-parent-phone').textContent = isGeneral ? 'เบอร์โทรติดต่อ (ถ้ามี)' : 'เบอร์โทรผู้ปกครอง';
 }
 
 /* ════════════════════════════════════════════════════════
@@ -269,6 +282,7 @@ function showRegisteredInfo() {
   document.getElementById('info-nickname').textContent = existingMember.nickname || '-';
   document.getElementById('info-pos').textContent      = existingMember.position || '-';
   document.getElementById('info-parent-phone').textContent = existingMember.parentPhone || '-';
+  document.querySelector('#info-parent-phone').previousElementSibling.textContent = existingMember.rank === 'บุคคลทั่วไป' ? 'เบอร์โทรติดต่อ' : 'เบอร์โทรผู้ปกครอง';
 }
 
 function showEditForm() {
@@ -285,6 +299,7 @@ function showEditForm() {
     document.getElementById('inp-nickname').value = existingMember.nickname || '';
     document.getElementById('inp-position').value = existingMember.position || '';
     document.getElementById('inp-parent-phone').value = existingMember.parentPhone || '';
+    updateRegistrationFields();
   }
 }
 
@@ -334,11 +349,11 @@ async function submitData() {
     nicknameEl.classList.add('error');
     return customAlert('กรุณากรอกชื่อเล่น', 'ข้อมูลไม่ครบ', '⚠️');
   }
-  if (!position) {
+  if (level !== 'บุคคลทั่วไป' && !position) {
     positionEl.classList.add('error');
     return customAlert('กรุณากรอกคอร์สเรียน', 'ข้อมูลไม่ครบ', '⚠️');
   }
-  if (!/^0[0-9]{9}$/.test(parentPhone)) {
+  if ((level !== 'บุคคลทั่วไป' || parentPhone) && !/^0[0-9]{9}$/.test(parentPhone)) {
     parentPhoneEl.classList.add('error');
     return customAlert('กรุณากรอกเบอร์โทรผู้ปกครอง 10 หลัก โดยขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
   }
