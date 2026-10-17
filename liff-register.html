@@ -105,6 +105,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 </div>
 
 <!-- Registration / Edit Form -->
+<div class="form-card hidden" id="ui-registration-closed" style="text-align:center;">ขณะนี้ปิดรับลงทะเบียนใหม่ กรุณาติดต่อผู้ดูแลระบบ</div>
 <div class="form-card hidden" id="ui-form">
   <h2 id="form-title" style="font-size:20px; margin-bottom:20px; text-align:center; border-bottom:1px solid #eee; padding-bottom:15px;">ลงทะเบียนเข้าสู่ระบบ</h2>
 
@@ -138,6 +139,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <div class="form-group">
     <label class="form-label" id="lbl-position">คอร์สเรียน</label>
     <input type="text" class="form-control" id="inp-position" placeholder="กรอกชื่อคอร์สเรียน" maxlength="100">
+    <select class="form-control hidden" id="inp-position-select"><option value="">-- เลือกคอร์สเรียน --</option></select>
   </div>
   <div class="form-group">
     <label class="form-label" id="lbl-parent-phone" for="inp-parent-phone">เบอร์โทรผู้ปกครอง</label>
@@ -161,6 +163,9 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxKKawrK__-fSv-6z_GVziG
 let profile        = null;
 let existingMember = null;
 let isSubmitting   = false; // [FIX] guard double-submit
+let registrationOpen = true;
+let courseOptions = [];
+let courseLabel = 'คอร์สเรียน';
 
 /* ════════════════════════════════════════════════════════
    MODAL
@@ -219,6 +224,8 @@ async function init() {
     if (memberRes.status === 'ok' && memberRes.member) {
       existingMember = memberRes.member;
       showRegisteredInfo();
+    } else if (!registrationOpen) {
+      document.getElementById('ui-registration-closed').classList.remove('hidden');
     } else {
       document.getElementById('ui-form').classList.remove('hidden');
     }
@@ -240,6 +247,14 @@ function applyTemplate(config) {
   document.title = (config.appName || 'System') + ' - ลงทะเบียน';
   document.getElementById('ui-app-name').textContent = config.appName  || '';
   document.getElementById('ui-org-name').textContent = config.orgName  || '';
+  registrationOpen = config.registrationOpen !== false;
+  courseOptions = Array.isArray(config.courseOptions) ? config.courseOptions : [];
+  courseLabel = config.termPosition || 'คอร์สเรียน';
+  const courseSelect = document.getElementById('inp-position-select');
+  courseSelect.replaceChildren(new Option('-- เลือกคอร์สเรียน --', '', true, true));
+  courseOptions.forEach(course => courseSelect.appendChild(new Option(course, course)));
+  document.getElementById('inp-position').classList.toggle('hidden', courseOptions.length > 0);
+  courseSelect.classList.toggle('hidden', courseOptions.length === 0);
 
   const levelLabel = config.termLevel || 'ชั้นประถมศึกษา';
   document.getElementById('lbl-level').textContent        = 'เลือกชั้นเรียนหรือประเภทผู้ใช้';
@@ -260,12 +275,12 @@ function applyTemplate(config) {
   document.getElementById('lbl-fullname').textContent     = `ชื่อ-นามสกุล${config.termUser || ''}`;
   document.getElementById('lbl-info-level').textContent   = 'ชั้นเรียน/ประเภทผู้ใช้';
   document.getElementById('lbl-info-fullname').textContent = `ชื่อ-นามสกุล${config.termUser || ''}`;
-  document.getElementById('lbl-info-pos').textContent     = 'คอร์สเรียน';
+  document.getElementById('lbl-info-pos').textContent     = courseLabel;
 }
 
 function updateRegistrationFields() {
   const isGeneral = document.getElementById('inp-level').value === 'บุคคลทั่วไป';
-  document.getElementById('lbl-position').textContent = isGeneral ? 'คอร์สเรียน (ถ้ามี)' : 'คอร์สเรียน';
+  document.getElementById('lbl-position').textContent = isGeneral ? `${courseLabel} (ถ้ามี)` : courseLabel;
   document.getElementById('lbl-parent-phone').textContent = isGeneral ? 'เบอร์โทรติดต่อ (ถ้ามี)' : 'เบอร์โทรผู้ปกครอง';
 }
 
@@ -298,6 +313,11 @@ function showEditForm() {
     document.getElementById('inp-fullname').value = existingMember.fullName || '';
     document.getElementById('inp-nickname').value = existingMember.nickname || '';
     document.getElementById('inp-position').value = existingMember.position || '';
+    const courseSelect = document.getElementById('inp-position-select');
+    if (existingMember.position && courseOptions.length && !courseOptions.includes(existingMember.position)) {
+      courseSelect.appendChild(new Option(existingMember.position + ' (ข้อมูลเดิม)', existingMember.position));
+    }
+    courseSelect.value = existingMember.position || '';
     document.getElementById('inp-parent-phone').value = existingMember.parentPhone || '';
     updateRegistrationFields();
   }
@@ -320,21 +340,23 @@ async function submitData() {
   const fullnameEl = document.getElementById('inp-fullname');
   const nicknameEl = document.getElementById('inp-nickname');
   const positionEl = document.getElementById('inp-position');
+  const courseSelectEl = document.getElementById('inp-position-select');
+  const activePositionEl = courseOptions.length ? courseSelectEl : positionEl;
   const parentPhoneEl = document.getElementById('inp-parent-phone');
 
   const level    = levelEl.value;
   const fullname = fullnameEl.value.trim();
   const nickname = nicknameEl.value.trim();
-  const position = positionEl.value.trim();
+  const position = activePositionEl.value.trim();
   const parentPhone = parentPhoneEl.value.trim();
 
   // [FIX] ล้าง error state ก่อน validate ใหม่
-  [levelEl, fullnameEl, nicknameEl, positionEl, parentPhoneEl].forEach(el => el.classList.remove('error'));
+  [levelEl, fullnameEl, nicknameEl, positionEl, courseSelectEl, parentPhoneEl].forEach(el => el.classList.remove('error'));
 
   // Validation
   if (!level || levelEl.selectedIndex < 1) {
     levelEl.classList.add('error');
-    return customAlert('กรุณาเลือกระดับชั้นให้ถูกต้อง', 'ข้อมูลไม่ครบ', '⚠️');
+    return customAlert('กรุณาเลือกชั้นเรียนหรือบุคคลทั่วไป', 'ข้อมูลไม่ครบ', '⚠️');
   }
   if (!fullname) {
     fullnameEl.classList.add('error');
@@ -350,12 +372,12 @@ async function submitData() {
     return customAlert('กรุณากรอกชื่อเล่น', 'ข้อมูลไม่ครบ', '⚠️');
   }
   if (level !== 'บุคคลทั่วไป' && !position) {
-    positionEl.classList.add('error');
+    activePositionEl.classList.add('error');
     return customAlert('กรุณากรอกคอร์สเรียน', 'ข้อมูลไม่ครบ', '⚠️');
   }
   if ((level !== 'บุคคลทั่วไป' || parentPhone) && !/^0[0-9]{9}$/.test(parentPhone)) {
     parentPhoneEl.classList.add('error');
-    return customAlert('กรุณากรอกเบอร์โทรผู้ปกครอง 10 หลัก โดยขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
+    return customAlert(level === 'บุคคลทั่วไป' ? 'เบอร์โทรติดต่อต้องมี 10 หลักและขึ้นต้นด้วย 0' : 'กรุณากรอกเบอร์โทรผู้ปกครอง 10 หลัก โดยขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
   }
 
   const btn       = document.getElementById('btn-submit');
