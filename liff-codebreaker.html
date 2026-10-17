@@ -161,7 +161,6 @@ let currentQIndex = 0;
 let score = 0;
 let wiresCutCount = 0;
 let isLocked = false;
-let currentCorrectAnswer = '';
 let userId = '';
 
 const TIME_LIMIT = 30;
@@ -192,13 +191,12 @@ async function init() {
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
     userId = (await liff.getProfile()).userId;
-    const data = await callAPI('GET', { action:'get_questions', userId: userId });
+    const data = await callAPI('GET', { action:'get_game_questions', game:'codebreaker', userId: userId });
     
     if (data.status === 'error') throw new Error(data.message);
 
     allQs = data.questions || [];
-    if (allQs.length === 0) throw new Error(`ไม่พบข้อสอบในระบบ`);
-    if (!allQs[0].correctAnswer) throw new Error("ไม่พบเฉลย! คุณอาจยังไม่ได้อัปเดต Code.gs เป็นเวอร์ชันล่าสุด");
+    if (allQs.length === 0) throw new Error('ยังไม่มีข้อสอบที่เปิดใช้งาน กรุณาให้ผู้ดูแลเพิ่มหรือเปิดข้อสอบ');
 
     populateSubjectSelect(allQs, 'sel-subject');
 
@@ -271,7 +269,6 @@ function loadNextBomb() {
   const q = gamePool[currentQIndex];
   document.getElementById('q-text').textContent = q.questionText;
   
-  currentCorrectAnswer = (q.correctAnswer || '').toUpperCase();
 
   const displayLetters = ['A', 'B', 'C', 'D'];
   const shuffledKeys = displayLetters.filter(k => q.choices && q.choices[k]).sort(() => Math.random() - 0.5);
@@ -294,10 +291,10 @@ function loadNextBomb() {
   startTimer();
 }
 
-function startTimer() {
+function startTimer(duration = TIME_LIMIT) {
   clearInterval(timerInterval);
   startTimestamp = Date.now();
-  timeLeft = TIME_LIMIT;
+  timeLeft = duration;
   
   const timerEl = document.getElementById('timer');
   timerEl.style.color = 'var(--red)';
@@ -305,7 +302,7 @@ function startTimer() {
   
   timerInterval = setInterval(() => {
     const elapsedSecs = (Date.now() - startTimestamp) / 1000;
-    timeLeft = Math.max(0, TIME_LIMIT - elapsedSecs);
+    timeLeft = Math.max(0, duration - elapsedSecs);
     timerEl.textContent = timeLeft.toFixed(1);
     
     if (timeLeft <= 0) {
@@ -315,7 +312,7 @@ function startTimer() {
   }, 50);
 }
 
-function cutWire(index) {
+async function cutWire(index) {
   if (isLocked) return;
   
   const row = document.getElementById(`row-${index}`);
@@ -323,8 +320,21 @@ function cutWire(index) {
 
   const btn = document.getElementById(`btn-${index}`);
   const realKey = btn.getAttribute('data-real-key');
-  
-  if (realKey === currentCorrectAnswer) {
+  isLocked = true;
+  clearInterval(timerInterval);
+  const remaining = timeLeft;
+  let result;
+  try {
+    result = await callAPI('POST', { action:'check_game_answer', game:'codebreaker', userId, questionId:gamePool[currentQIndex].questionId, answer:realKey });
+    if (result.status !== 'ok') throw new Error(result.message || 'ตรวจคำตอบไม่สำเร็จ');
+  } catch (e) {
+    isLocked = false;
+    startTimer(remaining);
+    alert('ตรวจคำตอบไม่สำเร็จ: ' + e.message);
+    return;
+  }
+
+  if (result.isCorrect) {
     row.classList.add('cut');
     explodeBomb("คุณเผลอตัดสายที่ถูกต้องไป!");
   } else {
@@ -347,7 +357,7 @@ function cutWire(index) {
         currentQIndex++;
         loadNextBomb();
       }, 600);
-    }
+    } else { isLocked = false; startTimer(remaining); }
   }
 }
 
