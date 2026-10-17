@@ -180,7 +180,7 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
     </div>
     <div class="badge-status" id="r-badge">✅ สอบผ่าน</div>
     <div class="res-user-name" id="r-name">ชื่อ-นามสกุล</div>
-    <div class="res-user-sub"  id="r-sub">ระดับชั้น · สาขาวิชา</div>
+    <div class="res-user-sub"  id="r-sub">ชั้นเรียน · คอร์สเรียน</div>
   </div>
   <div class="stats-grid">
     <div class="stat-box-small"><div class="st-val" id="r-pct">0%</div><div class="st-lbl">คะแนนเปอร์เซ็นต์</div></div>
@@ -324,7 +324,7 @@ async function init() {
       opt.value      = s.name;
       // [FIX] ใช้ textContent แทนการ concat string ใน innerHTML กัน XSS
       opt.textContent = completed.includes(s.name)
-        ? `✅ ${s.name} (สอบผ่านแล้ว)`
+        ? `✅ ${s.name} (ทำแบบทดสอบแล้ว)`
         : `${s.name} (${s.count} ข้อ)`;
       opt.disabled    = completed.includes(s.name);
       sel.appendChild(opt);
@@ -583,7 +583,7 @@ async function submitExam(isTimeout) {
     document.getElementById('r-max').textContent   = res.maxScore;
 
     const pct    = res.percentage;
-    const isPass = pct >= 60;
+    const isPass = res.passed === undefined ? pct >= 60 : res.passed;
     const badge  = document.getElementById('r-badge');
     badge.className   = `badge-status ${isPass ? 'pass' : 'fail'}`;
     badge.textContent = isPass ? '✅ ผ่านเกณฑ์' : '❌ ยังไม่ผ่าน';
