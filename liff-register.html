@@ -96,7 +96,8 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
     <div class="info-row"><span class="info-label" id="lbl-info-level">ระดับชั้น</span><span class="info-value" id="info-level">-</span></div>
     <div class="info-row"><span class="info-label" id="lbl-info-fullname">ชื่อ-นามสกุล</span><span class="info-value" id="info-fullname">-</span></div>
     <div class="info-row"><span class="info-label">ชื่อเล่น</span><span class="info-value" id="info-nickname">-</span></div>
-    <div class="info-row"><span class="info-label" id="lbl-info-pos">สาขา</span><span class="info-value" id="info-pos">-</span></div>
+    <div class="info-row"><span class="info-label" id="lbl-info-pos">คอร์สเรียน</span><span class="info-value" id="info-pos">-</span></div>
+    <div class="info-row"><span class="info-label">เบอร์โทรผู้ปกครอง</span><span class="info-value" id="info-parent-phone">-</span></div>
   </div>
 
   <button class="btn" onclick="liff.closeWindow()">เข้าสู่บทเรียน</button>
@@ -108,21 +109,16 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   <h2 id="form-title" style="font-size:20px; margin-bottom:20px; text-align:center; border-bottom:1px solid #eee; padding-bottom:15px;">ลงทะเบียนเข้าสู่ระบบ</h2>
 
   <div class="form-group">
-    <label class="form-label" id="lbl-level">เลือกระดับชั้น</label>
+    <label class="form-label" id="lbl-level">เลือกชั้นประถมศึกษา</label>
     <select class="form-control" id="inp-level">
       <option value="" disabled selected>-- เลือก --</option>
-      <optgroup label="ประถมศึกษา">
+      <optgroup label="ชั้นประถมศึกษา">
         <option value="ป.1">ป.1</option>
         <option value="ป.2">ป.2</option>
         <option value="ป.3">ป.3</option>
         <option value="ป.4">ป.4</option>
         <option value="ป.5">ป.5</option>
         <option value="ป.6">ป.6</option>
-      </optgroup>
-        
-      </optgroup>
-      <optgroup label="บุคคลทั่วไป">
-        <option value="บุคคลทั่วไป">บุคคลทั่วไป</option>
       </optgroup>
     </select>
   </div>
@@ -137,8 +133,12 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
     <input type="text" class="form-control" id="inp-nickname" placeholder="กรอกชื่อเล่นสั้นๆ" maxlength="30">
   </div>
   <div class="form-group">
-    <label class="form-label" id="lbl-position">สาขา / กลุ่มเรียน</label>
-    <input type="text" class="form-control" id="inp-position" placeholder="เช่น สาขาพญาไท, ห้อง 1" maxlength="100">
+    <label class="form-label" id="lbl-position">คอร์สเรียน</label>
+    <input type="text" class="form-control" id="inp-position" placeholder="กรอกชื่อคอร์สเรียน" maxlength="100">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="inp-parent-phone">เบอร์โทรผู้ปกครอง</label>
+    <input type="tel" class="form-control" id="inp-parent-phone" placeholder="เช่น 0812345678" inputmode="tel" autocomplete="tel" maxlength="10">
   </div>
 
   <button class="btn" id="btn-submit" onclick="submitData()">บันทึกข้อมูล</button>
@@ -238,12 +238,12 @@ function applyTemplate(config) {
   document.getElementById('ui-app-name').textContent = config.appName  || '';
   document.getElementById('ui-org-name').textContent = config.orgName  || '';
 
-  document.getElementById('lbl-level').textContent        = `ระบุ${config.termLevel || 'ระดับชั้น'}ปัจจุบัน`;
+  document.getElementById('lbl-level').textContent        = 'เลือกชั้นประถมศึกษา';
   document.getElementById('lbl-fullname').textContent     = `ชื่อ-นามสกุล${config.termUser || ''}`;
-  document.getElementById('lbl-position').textContent     = `ระบุ${config.termPosition || 'สาขา'}`;
-  document.getElementById('lbl-info-level').textContent   = config.termLevel    || 'ระดับชั้น';
+  document.getElementById('lbl-position').textContent     = 'คอร์สเรียน';
+  document.getElementById('lbl-info-level').textContent   = 'ชั้นประถมศึกษา';
   document.getElementById('lbl-info-fullname').textContent = `ชื่อ-นามสกุล${config.termUser || ''}`;
-  document.getElementById('lbl-info-pos').textContent     = config.termPosition || 'สาขา';
+  document.getElementById('lbl-info-pos').textContent     = 'คอร์สเรียน';
 }
 
 /* ════════════════════════════════════════════════════════
@@ -258,6 +258,7 @@ function showRegisteredInfo() {
   document.getElementById('info-fullname').textContent = existingMember.fullName || '-';
   document.getElementById('info-nickname').textContent = existingMember.nickname || '-';
   document.getElementById('info-pos').textContent      = existingMember.position || '-';
+  document.getElementById('info-parent-phone').textContent = existingMember.parentPhone || '-';
 }
 
 function showEditForm() {
@@ -273,6 +274,7 @@ function showEditForm() {
     document.getElementById('inp-fullname').value = existingMember.fullName || '';
     document.getElementById('inp-nickname').value = existingMember.nickname || '';
     document.getElementById('inp-position').value = existingMember.position || '';
+    document.getElementById('inp-parent-phone').value = existingMember.parentPhone || '';
   }
 }
 
@@ -293,17 +295,19 @@ async function submitData() {
   const fullnameEl = document.getElementById('inp-fullname');
   const nicknameEl = document.getElementById('inp-nickname');
   const positionEl = document.getElementById('inp-position');
+  const parentPhoneEl = document.getElementById('inp-parent-phone');
 
   const level    = levelEl.value;
   const fullname = fullnameEl.value.trim();
   const nickname = nicknameEl.value.trim();
   const position = positionEl.value.trim();
+  const parentPhone = parentPhoneEl.value.trim();
 
   // [FIX] ล้าง error state ก่อน validate ใหม่
-  [levelEl, fullnameEl, nicknameEl].forEach(el => el.classList.remove('error'));
+  [levelEl, fullnameEl, nicknameEl, positionEl, parentPhoneEl].forEach(el => el.classList.remove('error'));
 
   // Validation
-  if (!level) {
+  if (!/^ป\.[1-6]$/.test(level)) {
     levelEl.classList.add('error');
     return customAlert('กรุณาเลือกระดับชั้นให้ถูกต้อง', 'ข้อมูลไม่ครบ', '⚠️');
   }
@@ -319,6 +323,14 @@ async function submitData() {
   if (!nickname) {
     nicknameEl.classList.add('error');
     return customAlert('กรุณากรอกชื่อเล่น', 'ข้อมูลไม่ครบ', '⚠️');
+  }
+  if (!position) {
+    positionEl.classList.add('error');
+    return customAlert('กรุณากรอกคอร์สเรียน', 'ข้อมูลไม่ครบ', '⚠️');
+  }
+  if (!/^0[0-9]{9}$/.test(parentPhone)) {
+    parentPhoneEl.classList.add('error');
+    return customAlert('กรุณากรอกเบอร์โทรผู้ปกครอง 10 หลัก โดยขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
   }
 
   const btn       = document.getElementById('btn-submit');
@@ -338,6 +350,7 @@ async function submitData() {
       fullName:    fullname,
       nickname:    nickname,
       position:    position,
+      parentPhone: parentPhone,
     });
 
     if (res.status === 'ok') {
