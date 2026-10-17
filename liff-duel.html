@@ -198,11 +198,10 @@ async function init() {
 
     userId = (await liff.getProfile()).userId;
     
-    const qData = await callAPI('GET', { action:'get_questions', userId: userId });
-    if (qData.status === 'ok') {
-      allQs = qData.questions || [];
-      populateSubjectSelect(allQs, 'sel-subject');
-    }
+    const qData = await callAPI('GET', { action:'get_game_questions', game:'duel', userId: userId });
+    if (qData.status !== 'ok') throw new Error(qData.message || 'โหลดคำถามไม่สำเร็จ');
+    allQs = qData.questions || [];
+    populateSubjectSelect(allQs, 'sel-subject');
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('duelId')) await loadDuelData(urlParams.get('duelId'));
@@ -337,24 +336,32 @@ function startTimerUI() {
   }, 100);
 }
 
-function selectAnswer(displayLetter) {
+async function selectAnswer(displayLetter) {
   if(isAnswerLocked) return; 
   isAnswerLocked = true; 
   clearInterval(gameTimerInterval);
   
-  totalTimeMs += Date.now() - qStartTime;
+  const answerTimeMs = Date.now() - qStartTime;
   
   const btn = document.getElementById(`btn-${displayLetter}`);
   const realKey = btn.getAttribute('data-real-key');
-  const correctKey = (questions[qIndex].correctAnswer || '').toUpperCase();
   
   btn.classList.add('selected');
-  
-  setTimeout(() => { 
-    if (realKey === correctKey) myScore++; 
-    qIndex++; 
-    renderQuestion(); 
-  }, 300); 
+  try {
+    const result = await callAPI('POST', { action:'check_game_answer', game:'duel', userId, questionId:questions[qIndex].questionId, answer:realKey });
+    if (result.status !== 'ok') throw new Error(result.message || 'ตรวจคำตอบไม่สำเร็จ');
+    totalTimeMs += answerTimeMs;
+    setTimeout(() => {
+      if (result.isCorrect) myScore++;
+      qIndex++;
+      renderQuestion();
+    }, 300);
+  } catch (e) {
+    btn.classList.remove('selected');
+    isAnswerLocked = false;
+    startTimerUI();
+    showModal('⚠️', 'ตรวจคำตอบไม่สำเร็จ', escHtml(e.message));
+  }
 }
 
 async function submitDuelResult() {
