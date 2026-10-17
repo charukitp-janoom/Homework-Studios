@@ -167,7 +167,7 @@ const LIFF_ID = '2011865890-LHyNYmA6';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxKKawrK__-fSv-6z_GVziGlx0FIlZax-bkOirlxeecBjJqFlKB0lc26t5pifqqVP5Wvw/exec';
 
 const PRIZES = ['1,000', '2,000', '3,000', '5,000', '10,000', '20,000', '40,000', '80,000', '150,000', '300,000', '500,000', '1,000,000'];
-let allQs = [], questions = [], currentLevel = 0, isAnswerLocked = false, currentCorrectAnswer = '', userId = '';
+let allQs = [], questions = [], currentLevel = 0, isAnswerLocked = false, userId = '';
 let appConfig = null;
 
 let qTimerInterval = null, qTimeLeft = 60, MAX_Q_TIME = 60, startTimestamp = 0;
@@ -199,13 +199,12 @@ async function init() {
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
     userId = (await liff.getProfile()).userId;
-    const data = await callAPI('GET', { action:'get_questions', userId: userId });
+    const data = await callAPI('GET', { action:'get_game_questions', userId: userId });
 
     if (data.status === 'error') throw new Error(data.message);
 
     allQs = data.questions || [];
-    if (allQs.length === 0) throw new Error("ไม่พบข้อสอบในระบบ");
-    if (!allQs[0].correctAnswer) throw new Error("⚠️ ไม่พบข้อมูลเฉลย! กรุณาอัปเดต Code.gs เป็นเวอร์ชันล่าสุด");
+    if (allQs.length === 0) throw new Error("ยังไม่มีข้อสอบที่เปิดใช้งาน กรุณาให้ผู้ดูแลเพิ่มหรือเปิดข้อสอบ");
 
     populateSubjectSelect(allQs, 'sel-subject');
 
@@ -310,15 +309,6 @@ function timeIsUp() {
   if (isAnswerLocked) return;
   isAnswerLocked = true;
 
-  const correctDisplayLetter = ['A','B','C','D'].find(l => {
-    const b = document.getElementById(`btn-${l}`);
-    return b && b.getAttribute('data-real-key') === currentCorrectAnswer;
-  });
-
-  if(correctDisplayLetter) {
-     document.getElementById(`btn-${correctDisplayLetter}`).classList.add('correct');
-  }
-
   const qTextBox = document.getElementById('q-text');
   qTextBox.innerHTML = `<span style="color:var(--red); font-size:24px; display:block; margin-bottom:10px;">⏰ หมดเวลา!</span>` + qTextBox.innerHTML;
 
@@ -341,7 +331,6 @@ function loadQuestion(level) {
   const q = questions[level];
   document.getElementById('q-text').textContent = q.questionText;
   
-  currentCorrectAnswer = (q.correctAnswer || '').toUpperCase();
   const shuffledKeys = displayLetters.filter(k => q.choices && q.choices[k]).sort(() => Math.random() - 0.5);
 
   shuffledKeys.forEach((key, index) => {
@@ -355,7 +344,7 @@ function loadQuestion(level) {
   startQTimer();
 }
 
-function selectAnswer(displayLetter) {
+async function selectAnswer(displayLetter) {
   if (isAnswerLocked) return;
   isAnswerLocked = true;
   stopQTimer(); 
@@ -364,41 +353,52 @@ function selectAnswer(displayLetter) {
   const realKey = btn.getAttribute('data-real-key');
   btn.classList.add('selected');
 
-  setTimeout(() => {
-    btn.classList.remove('selected');
-    
-    const correctDisplayLetter = ['A','B','C','D'].find(l => {
-      const b = document.getElementById(`btn-${l}`);
-      return b && b.getAttribute('data-real-key') === currentCorrectAnswer;
+  try {
+    const result = await callAPI('POST', {
+      action:'check_game_answer', userId, questionId:questions[currentLevel].questionId, answer:realKey,
     });
-
-    if (realKey === currentCorrectAnswer) {
-      btn.classList.add('correct');
-      setTimeout(() => {
-        if (currentLevel === PRIZES.length - 1) endGame(true); 
-        else loadQuestion(currentLevel + 1); 
-      }, 1500);
-    } else {
-      btn.classList.add('wrong');
-      if(correctDisplayLetter) document.getElementById(`btn-${correctDisplayLetter}`).classList.add('correct');
-      setTimeout(() => { endGame(false); }, 2000);
-    }
-  }, 2000);
+    if (result.status !== 'ok') throw new Error(result.message || 'ตรวจคำตอบไม่สำเร็จ');
+    setTimeout(() => {
+      btn.classList.remove('selected');
+      if (result.isCorrect) {
+        btn.classList.add('correct');
+        setTimeout(() => {
+          if (currentLevel === PRIZES.length - 1) endGame(true);
+          else loadQuestion(currentLevel + 1);
+        }, 1500);
+      } else {
+        btn.classList.add('wrong');
+        setTimeout(() => { endGame(false); }, 2000);
+      }
+    }, 2000);
+  } catch (e) {
+    btn.classList.remove('selected');
+    isAnswerLocked = false;
+    startQTimer();
+    alert('ตรวจคำตอบไม่สำเร็จ: ' + e.message);
+  }
 }
 
-function useFiftyFifty() {
+async function useFiftyFifty() {
   if (isAnswerLocked) return;
   const btn5050 = document.getElementById('btn-5050');
   if (btn5050.classList.contains('used')) return;
   
   btn5050.classList.add('used');
+  const questionId = questions[currentLevel].questionId;
 
-  const displayLetters = ['A','B','C','D'].filter(l => document.getElementById(`btn-${l}`).style.display !== 'none');
-  const wrongLetters = displayLetters.filter(l => document.getElementById(`btn-${l}`).getAttribute('data-real-key') !== currentCorrectAnswer);
-  
-  wrongLetters.sort(() => Math.random() - 0.5).slice(0, 2).forEach(l => {
-    document.getElementById(`btn-${l}`).classList.add('hidden-choice');
-  });
+  try {
+    const result = await callAPI('POST', { action:'get_game_hint', userId, questionId });
+    if (result.status !== 'ok') throw new Error(result.message || 'ใช้ตัวช่วยไม่สำเร็จ');
+    if (isAnswerLocked || questions[currentLevel].questionId !== questionId) return;
+    ['A','B','C','D'].forEach(letter => {
+      const button = document.getElementById(`btn-${letter}`);
+      if (result.wrongAnswers.includes(button.getAttribute('data-real-key'))) button.classList.add('hidden-choice');
+    });
+  } catch (e) {
+    btn5050.classList.remove('used');
+    alert('ใช้ตัวช่วยไม่สำเร็จ: ' + e.message);
+  }
 }
 
 function quitGame() {
