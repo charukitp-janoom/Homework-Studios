@@ -225,6 +225,14 @@ select.form-control { cursor: pointer; }
       <div class="list-title mb-2">ตั้งค่าระบบทั่วไป</div>
       <label class="stat-label">เวลาทำข้อสอบมาตรฐาน (นาที)</label>
       <input type="number" id="inp-exam-time" class="form-control" value="20" min="1" max="180">
+      <label class="stat-label">ช่วงชั้นที่เปิดให้ลงทะเบียน</label>
+      <select id="inp-grade-mode" class="form-control">
+        <option value="primary">ประถมศึกษา ป.1–ป.6</option>
+        <option value="lower_secondary">มัธยมศึกษาตอนต้น ม.1–ม.3</option>
+        <option value="upper_secondary">มัธยมศึกษาตอนปลาย ม.4–ม.6</option>
+        <option value="secondary">มัธยมศึกษาทั้งหมด ม.1–ม.6</option>
+      </select>
+      <div class="list-sub mb-2">มีผลกับการลงทะเบียนและการแก้ไขข้อมูลครั้งถัดไป ข้อมูลชั้นเรียนเดิมยังคงอยู่</div>
       <button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
     </div>
     <div class="list-card mt-4" style="border-color:rgba(255,82,82,0.3);">
@@ -245,8 +253,8 @@ select.form-control { cursor: pointer; }
     <label class="stat-label">กลุ่มเป้าหมาย</label>
     <select id="inp-broadcast-target-type" class="form-control" onchange="updateBroadcastTargetOptions()">
       <option value="ALL">สมาชิกทุกคนในระบบ</option>
-      <option value="LEVEL">ระบุตาม ระดับชั้น</option>
-      <option value="POSITION">ระบุตาม สาขาวิชา</option>
+      <option value="LEVEL">ระบุตาม ชั้นเรียน</option>
+      <option value="POSITION">ระบุตาม คอร์สเรียน</option>
     </select>
     <div id="wrap-broadcast-target-val" class="hidden">
       <label class="stat-label">เลือกกลุ่ม</label>
@@ -590,6 +598,7 @@ function renderAll() {
   renderStore();
   if (appData.settings) {
     document.getElementById('inp-exam-time').value = appData.settings.examTimeMinutes;
+    document.getElementById('inp-grade-mode').value = appData.settings.gradeMode || 'primary';
   }
 }
 
@@ -1213,7 +1222,12 @@ function updateRedeem(id, status) {
 async function saveSettings() {
   const t = parseInt(document.getElementById('inp-exam-time').value);
   if (!t || t < 1 || t > 180) return customAlert('เวลาต้องอยู่ระหว่าง 1-180 นาที', 'แจ้งเตือน', '⚠️');
-  try { await callAPI('POST', { action:'save_settings', secret:adminSecret, examTimeMinutes:t }); customAlert('บันทึกเวลาทำข้อสอบแล้ว', 'สำเร็จ', '✅'); }
+  const gradeMode = document.getElementById('inp-grade-mode').value;
+  try {
+    const res = await callAPI('POST', { action:'save_settings', secret:adminSecret, examTimeMinutes:t, gradeMode });
+    if (res.status !== 'ok') throw new Error(res.message || 'บันทึกไม่สำเร็จ');
+    customAlert('บันทึกเวลาทำข้อสอบและช่วงชั้นแล้ว', 'สำเร็จ', '✅');
+  }
   catch (e) { customAlert(e.message, 'ผิดพลาด', '❌'); }
 }
 
