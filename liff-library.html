@@ -151,15 +151,15 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
   </div>
 </div>
 
-<!-- PDF stays on this LIFF page when the source permits embedding. -->
-<div id="modal-pdf" class="modal-pdf-bg hidden" role="dialog" aria-modal="true" aria-label="เอกสาร PDF">
+<!-- PDF and websites stay on this LIFF page when the source permits embedding. -->
+<div id="modal-pdf" class="modal-pdf-bg hidden" role="dialog" aria-modal="true" aria-label="สื่อความรู้">
   <div class="pdf-toolbar">
     <button id="close-pdf-btn" type="button" aria-label="กลับไปคลังความรู้">← กลับ</button>
     <div id="pdf-title" class="pdf-title">เอกสาร PDF</div>
     <button id="open-pdf-in-line-btn" type="button">เปิดใน LINE</button>
   </div>
-  <iframe id="pdf-frame" class="pdf-frame" title="เอกสาร PDF"></iframe>
-  <div class="pdf-help">หากเอกสารไม่แสดง ให้กด “เปิดใน LINE”</div>
+  <iframe id="pdf-frame" class="pdf-frame" title="สื่อความรู้"></iframe>
+  <div id="embed-help" class="pdf-help">หากสื่อไม่แสดง ให้กด “เปิดใน LINE”</div>
 </div>
 
 <script>
@@ -327,7 +327,7 @@ function openMaterial(url, type, title) {
   }
 
   if (type === 'PDF') {
-    openPdfModal(url, title);
+    openEmbeddedMaterial(url, title, true);
   } else if (type === 'VIDEO') {
     const embedUrl = toEmbedUrl(url);
     if (!embedUrl) {
@@ -338,7 +338,7 @@ function openMaterial(url, type, title) {
     document.getElementById('video-frame').src = embedUrl;
     document.getElementById('modal-video').classList.remove('hidden');
   } else {
-    liff.openWindow({ url, external: true });
+    openEmbeddedMaterial(url, title, false);
   }
 }
 
@@ -352,22 +352,25 @@ function pdfEmbedUrl(url) {
   return url;
 }
 
-function openPdfModal(url, title) {
-  document.getElementById('pdf-title').textContent = title || 'เอกสาร PDF';
-  document.getElementById('pdf-frame').src = pdfEmbedUrl(url);
+function openEmbeddedMaterial(url, title, isPdf) {
+  document.getElementById('pdf-title').textContent = title || (isPdf ? 'เอกสาร PDF' : 'เว็บไซต์');
+  document.getElementById('embed-help').textContent = isPdf
+    ? 'หากเอกสารไม่แสดง ให้กด “เปิดใน LINE”'
+    : 'หากเว็บไซต์ไม่แสดง อาจไม่อนุญาตให้ฝังหน้าเว็บ ให้กด “เปิดใน LINE”';
+  document.getElementById('pdf-frame').src = isPdf ? pdfEmbedUrl(url) : url;
   document.getElementById('open-pdf-in-line-btn').onclick = () => liff.openWindow({ url, external: false });
   document.getElementById('modal-pdf').classList.remove('hidden');
 }
 
-function closePdfModal() {
+function closeEmbeddedMaterial() {
   document.getElementById('modal-pdf').classList.add('hidden');
   document.getElementById('pdf-frame').src = 'about:blank';
   document.getElementById('open-pdf-in-line-btn').onclick = null;
 }
 
-document.getElementById('close-pdf-btn').addEventListener('click', closePdfModal);
+document.getElementById('close-pdf-btn').addEventListener('click', closeEmbeddedMaterial);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && !document.getElementById('modal-pdf').classList.contains('hidden')) closePdfModal();
+  if (e.key === 'Escape' && !document.getElementById('modal-pdf').classList.contains('hidden')) closeEmbeddedMaterial();
 });
 
 /**
