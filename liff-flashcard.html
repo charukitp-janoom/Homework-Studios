@@ -171,10 +171,12 @@ async function init() {
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) { liff.login(); return; }
     
-    const configRes = await callAPI('GET', { action: 'get_config' });
+    const [configRes, profile] = await Promise.all([
+      callAPI('GET', { action: 'get_config' }), liff.getProfile(),
+    ]);
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
-    userId = (await liff.getProfile()).userId;
+    userId = profile.userId;
     const data = await callAPI('GET', { action:'get_game_questions', game:'flashcard', userId: userId });
     if (data.status === 'error') throw new Error(data.message);
 
@@ -351,6 +353,8 @@ async function swipeAction(swipedTrue) {
   clearInterval(timerInterval);
   const remaining = timeLeft;
   const cardData = flashcards[currentIndex];
+  // Animate immediately; keep the next card locked until the server checks it.
+  currentCardEl.style.transform = `translateX(${swipedTrue ? 500 : -500}px) rotate(${swipedTrue ? 30 : -30}deg)`;
   let result;
   try {
     result = await callAPI('POST', { action:'check_game_answer', game:'flashcard', userId, questionId:cardData.questionId, answer:cardData.choiceKey });
@@ -362,8 +366,6 @@ async function swipeAction(swipedTrue) {
     alert('ตรวจคำตอบไม่สำเร็จ: ' + e.message);
     return;
   }
-  currentCardEl.style.transform = `translateX(${swipedTrue ? 500 : -500}px) rotate(${swipedTrue ? 30 : -30}deg)`;
-  
   if (swipedTrue === result.isCorrect) {
     score++;
     document.getElementById('score-count').textContent = score;
