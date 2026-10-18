@@ -193,10 +193,12 @@ async function init() {
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) { liff.login(); return; }
     
-    const configRes = await callAPI('GET', { action: 'get_config' });
+    const [configRes, profile] = await Promise.all([
+      callAPI('GET', { action: 'get_config' }), liff.getProfile(),
+    ]);
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
-    userId = (await liff.getProfile()).userId;
+    userId = profile.userId;
     
     const qData = await callAPI('GET', { action:'get_game_questions', game:'duel', userId: userId });
     if (qData.status !== 'ok') throw new Error(qData.message || 'โหลดคำถามไม่สำเร็จ');
