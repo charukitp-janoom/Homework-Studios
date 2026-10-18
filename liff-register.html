@@ -281,7 +281,7 @@ function applyTemplate(config) {
 function updateRegistrationFields() {
   const isGeneral = document.getElementById('inp-level').value === 'บุคคลทั่วไป';
   document.getElementById('lbl-position').textContent = isGeneral ? `${courseLabel} (ถ้ามี)` : courseLabel;
-  document.getElementById('lbl-parent-phone').textContent = isGeneral ? 'เบอร์โทรติดต่อ (ถ้ามี)' : 'เบอร์โทรผู้ปกครอง';
+  document.getElementById('lbl-parent-phone').textContent = isGeneral ? 'เบอร์โทรติดต่อ (ถ้ามี)' : 'เบอร์โทรผู้ปกครอง (ถ้ามี)';
 }
 
 /* ════════════════════════════════════════════════════════
@@ -375,9 +375,9 @@ async function submitData() {
     activePositionEl.classList.add('error');
     return customAlert('กรุณากรอกคอร์สเรียน', 'ข้อมูลไม่ครบ', '⚠️');
   }
-  if ((level !== 'บุคคลทั่วไป' || parentPhone) && !/^0[0-9]{9}$/.test(parentPhone)) {
+  if (parentPhone && !/^0[0-9]{9}$/.test(parentPhone)) {
     parentPhoneEl.classList.add('error');
-    return customAlert(level === 'บุคคลทั่วไป' ? 'เบอร์โทรติดต่อต้องมี 10 หลักและขึ้นต้นด้วย 0' : 'กรุณากรอกเบอร์โทรผู้ปกครอง 10 หลัก โดยขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
+    return customAlert('เบอร์โทรต้องมี 10 หลักและขึ้นต้นด้วย 0', 'ข้อมูลไม่ถูกต้อง', '⚠️');
   }
 
   const btn       = document.getElementById('btn-submit');
