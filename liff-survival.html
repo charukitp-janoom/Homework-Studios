@@ -152,10 +152,12 @@ async function init() {
     await liff.init({ liffId: LIFF_ID });
     if (!liff.isLoggedIn()) { liff.login(); return; }
     
-    const configRes = await callAPI('GET', { action: 'get_config' });
+    const [configRes, profile] = await Promise.all([
+      callAPI('GET', { action: 'get_config' }), liff.getProfile(),
+    ]);
     if(configRes.status === 'ok') { appConfig = configRes.config; applyTemplate(appConfig); }
 
-    userId = (await liff.getProfile()).userId;
+    userId = profile.userId;
     const data = await callAPI('GET', { action:'get_game_questions', game:'survival', userId: userId });
     if (data.status === 'error') throw new Error(data.message);
 
