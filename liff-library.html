@@ -96,6 +96,14 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
 }
 .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
 
+/* ─── PDF viewer inside the LIFF page ─── */
+.modal-pdf-bg { position: fixed; inset: 0; z-index: 1001; background: var(--bg); display: flex; flex-direction: column; }
+.pdf-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.pdf-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.pdf-toolbar button { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--bg); color: var(--text); font: inherit; cursor: pointer; }
+.pdf-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+.pdf-help { padding: 8px 12px; text-align: center; color: var(--muted); font-size: 12px; }
+
 /* ─── Error State ─── */
 .error-box { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); border-radius: 12px; padding: 20px; text-align: center; margin: 20px; }
 .retry-btn { margin-top: 12px; padding: 10px 24px; background: var(--primary); color: #000; border: none; border-radius: 8px; font-size: 15px; font-weight: 800; font-family: 'Sarabun'; cursor: pointer; }
@@ -141,6 +149,17 @@ body { font-family: 'Sarabun', sans-serif; background: var(--bg); color: var(--t
       <iframe id="video-frame" allowfullscreen allow="autoplay; encrypted-media" title="วิดีโอสื่อการสอน"></iframe>
     </div>
   </div>
+</div>
+
+<!-- PDF stays on this LIFF page when the source permits embedding. -->
+<div id="modal-pdf" class="modal-pdf-bg hidden" role="dialog" aria-modal="true" aria-label="เอกสาร PDF">
+  <div class="pdf-toolbar">
+    <button id="close-pdf-btn" type="button" aria-label="กลับไปคลังความรู้">← กลับ</button>
+    <div id="pdf-title" class="pdf-title">เอกสาร PDF</div>
+    <button id="open-pdf-in-line-btn" type="button">เปิดใน LINE</button>
+  </div>
+  <iframe id="pdf-frame" class="pdf-frame" title="เอกสาร PDF"></iframe>
+  <div class="pdf-help">หากเอกสารไม่แสดง ให้กด “เปิดใน LINE”</div>
 </div>
 
 <script>
@@ -294,20 +313,22 @@ function handleCardClick(e) {
   const mat = materialMap.get(card.dataset.id);
   if (!mat) return;
 
-  openMaterial(mat.url, mat.type.toUpperCase());
+  openMaterial(mat.url, mat.type.toUpperCase(), mat.title);
 }
 
 /* ════════════════════════════════════════════════════════
    OPEN MATERIAL
    ════════════════════════════════════════════════════════ */
-function openMaterial(url, type) {
+function openMaterial(url, type, title) {
   // [FIX] ตรวจสอบ URL เบื้องต้นก่อนเปิด
   if (!url || !isValidUrl(url)) {
     alert('ลิงก์นี้ไม่ถูกต้อง กรุณาแจ้งแอดมิน');
     return;
   }
 
-  if (type === 'VIDEO') {
+  if (type === 'PDF') {
+    openPdfModal(url, title);
+  } else if (type === 'VIDEO') {
     const embedUrl = toEmbedUrl(url);
     if (!embedUrl) {
       // ถ้าแปลง embed ไม่ได้ (ไม่ใช่ YouTube) ให้เปิดเบราว์เซอร์ปกติ
@@ -320,6 +341,34 @@ function openMaterial(url, type) {
     liff.openWindow({ url, external: true });
   }
 }
+
+function pdfEmbedUrl(url) {
+  const u = new URL(url);
+  if (u.hostname === 'drive.google.com') {
+    const match = u.pathname.match(/^\/file\/d\/([^/]+)/);
+    const id = match ? match[1] : u.searchParams.get('id');
+    if (id && /^[\w-]+$/.test(id)) return `https://drive.google.com/file/d/${id}/preview`;
+  }
+  return url;
+}
+
+function openPdfModal(url, title) {
+  document.getElementById('pdf-title').textContent = title || 'เอกสาร PDF';
+  document.getElementById('pdf-frame').src = pdfEmbedUrl(url);
+  document.getElementById('open-pdf-in-line-btn').onclick = () => liff.openWindow({ url, external: false });
+  document.getElementById('modal-pdf').classList.remove('hidden');
+}
+
+function closePdfModal() {
+  document.getElementById('modal-pdf').classList.add('hidden');
+  document.getElementById('pdf-frame').src = 'about:blank';
+  document.getElementById('open-pdf-in-line-btn').onclick = null;
+}
+
+document.getElementById('close-pdf-btn').addEventListener('click', closePdfModal);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !document.getElementById('modal-pdf').classList.contains('hidden')) closePdfModal();
+});
 
 /**
  * [FIX] แปลง YouTube URL หลายรูปแบบ → embed URL
